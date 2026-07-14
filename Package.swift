@@ -17,15 +17,40 @@ let package = Package(
             name: "FlowCore"
         ),
 
+        // Global hold-to-talk hotkey via CGEventTap.
+        .target(
+            name: "HotkeyService",
+            dependencies: ["FlowCore"]
+        ),
+
+        // Microphone capture via AVAudioEngine: audio level + (later) STT feed.
+        .target(
+            name: "AudioService"
+        ),
+
+        // The floating recording indicator (SwiftUI). A library so it can be
+        // rendered headlessly in tests for visual verification.
+        .target(
+            name: "IndicatorUI"
+        ),
+
         // The app itself: SwiftUI @main, MenuBarExtra, UI, dependency wiring.
         .executableTarget(
             name: "FlowCloneApp",
-            dependencies: ["FlowCore"]
+            dependencies: ["FlowCore", "HotkeyService", "AudioService", "IndicatorUI"]
         ),
 
         .testTarget(
             name: "FlowCoreTests",
             dependencies: ["FlowCore"]
+        ),
+        .testTarget(
+            name: "HotkeyServiceTests",
+            dependencies: ["HotkeyService"]
+        ),
+        .testTarget(
+            name: "IndicatorUITests",
+            dependencies: ["IndicatorUI"]
         ),
     ]
 )

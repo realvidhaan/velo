@@ -55,6 +55,10 @@ struct MenuBarContentView: View {
         }
         .keyboardShortcut(",")
 
+        Button("Setup Guide…") {
+            (NSApp.delegate as? AppDelegate)?.showOnboarding()
+        }
+
         Button("Quit FlowClone") {
             NSApplication.shared.terminate(nil)
         }

@@ -58,16 +58,29 @@ Logic lives in the `FlowCore` library (unit-tested with `swift test`); the
 `FlowCloneApp` executable target holds `@main`, the SwiftUI menu-bar UI, and the
 floating recording indicator.
 
+## Setup
+
+On first launch FlowClone shows a setup guide that walks through the three
+permissions it needs:
+
+- **Microphone** — to hear you.
+- **Input Monitoring** — so the hold-to-talk hotkey works in any app.
+- **Accessibility** — so it can insert text into the focused app.
+
+If you use the default **Fn / Globe** hotkey, set that key to **“Do Nothing”**
+in System Settings ▸ Keyboard so it doesn't also trigger emoji or system
+dictation. You can pick a different hotkey (Right Option, F13) in Settings.
+
 ## Milestones
 
-- [ ] **M0** — project skeleton, menu-bar app, state machine + tests
-- [ ] **M1** — global hotkey, audio capture, recording indicator
-- [ ] **M2** — streaming speech-to-text (`SpeechAnalyzer`)
-- [ ] **M3** — text injection into the focused app
-- [ ] **M4** — LLM cleanup pass + per-app formatting
-- [ ] **M5** — settings, personal dictionary, history
-- [ ] **M5.5** — correction capture ("learns" your vocabulary)
-- [ ] **M6** — onboarding & polish
+- [x] **M0** — project skeleton, menu-bar app, state machine + tests
+- [x] **M1** — global hotkey, audio capture, recording indicator
+- [x] **M2** — streaming speech-to-text (`SpeechAnalyzer`)
+- [x] **M3** — text injection into the focused app
+- [x] **M4** — LLM cleanup pass + per-app formatting
+- [x] **M5** — settings, personal dictionary, history
+- [x] **M5.5** — correction capture ("learns" your vocabulary)
+- [x] **M6** — onboarding & polish
 - [ ] **M7** — Command Mode (select text, speak an edit)
 
 ## License

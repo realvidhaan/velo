@@ -10,6 +10,7 @@ import InjectionKit
 import CleanupKit
 import PersistenceKit
 import LearningKit
+import OnboardingUI
 
 /// Top-level runtime coordinator. Owns the hotkey, audio, and indicator, and
 /// drives the shared `DictationStateMachine`. In M1 the pipeline ends after
@@ -47,6 +48,8 @@ final class AppController: ObservableObject {
     @Published private(set) var state: DictationState = .idle
     @Published private(set) var hotkeyActive = false
     @Published private(set) var accessibilityGranted = false
+    @Published private(set) var microphoneGranted = false
+    @Published private(set) var speechModelInstalled = false
     @Published private(set) var lastLevel: Float = 0
     /// The most recent transcript, surfaced in the menu (visible proof STT works
     /// before injection lands in M3).
@@ -84,9 +87,12 @@ final class AppController: ObservableObject {
     /// Requests permissions and starts the hotkey tap. Safe to call repeatedly
     /// (e.g. after the user grants a permission in System Settings).
     func startServices() {
-        Task { _ = await AudioCaptureService.requestMicrophone() }
+        Task { self.microphoneGranted = await AudioCaptureService.requestMicrophone() }
         // Pre-install the speech model so the first dictation isn't slow.
-        Task { try? await sttEngine.prepare() }
+        Task {
+            try? await sttEngine.prepare()
+            self.speechModelInstalled = true
+        }
 
         if HotkeyService.inputMonitoringStatus != .granted {
             HotkeyService.requestInputMonitoring()
@@ -96,6 +102,7 @@ final class AppController: ObservableObject {
             log.notice("Hotkey inactive — Input Monitoring not granted yet")
         }
         accessibilityGranted = Accessibility.isTrusted
+        microphoneGranted = AudioCaptureService.microphoneAuthorized
     }
 
     func retryHotkey() {
@@ -108,6 +115,51 @@ final class AppController: ObservableObject {
         Accessibility.requestIfNeeded()
         accessibilityGranted = Accessibility.isTrusted
     }
+
+    // MARK: Onboarding
+
+    /// Refreshes all permission-related state (polled while onboarding is open).
+    func refreshPermissions() {
+        microphoneGranted = AudioCaptureService.microphoneAuthorized
+        accessibilityGranted = Accessibility.isTrusted
+        if !hotkeyActive { hotkeyActive = hotkeys.start() }
+    }
+
+    /// Whether the Globe/Fn key is set to "Do Nothing" (only relevant when the
+    /// hotkey is Fn; otherwise there's nothing to neutralize).
+    private var globeKeyNeutralized: Bool {
+        guard settings.hotkeyModifier == .fn else { return true }
+        let value = CFPreferencesCopyAppValue("AppleFnUsageType" as CFString, "com.apple.HIToolbox" as CFString) as? Int
+        return (value ?? 0) == 0
+    }
+
+    var onboardingState: OnboardingState {
+        OnboardingState(
+            microphoneGranted: microphoneGranted,
+            inputMonitoringGranted: hotkeyActive,
+            accessibilityGranted: accessibilityGranted,
+            globeKeyNeutralized: globeKeyNeutralized,
+            speechModelInstalled: speechModelInstalled
+        )
+    }
+
+    func onboardingGrantMicrophone() {
+        Task { self.microphoneGranted = await AudioCaptureService.requestMicrophone() }
+    }
+
+    func onboardingGrantInputMonitoring() {
+        HotkeyService.requestInputMonitoring()
+        retryHotkey()
+    }
+
+    func openKeyboardSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    var hasCompletedOnboarding: Bool { settings.hasCompletedOnboarding }
+    func completeOnboarding() { settings.hasCompletedOnboarding = true }
 
     // MARK: Hotkey handling
 

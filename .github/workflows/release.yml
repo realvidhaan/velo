@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app bundle (release)
+        run: ./Scripts/build-app.sh release
+
+      - name: Zip
+        run: |
+          cd build
+          ditto -c -k --keepParent FlowClone.app FlowClone.zip
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/FlowClone.zip
+          body: |
+            FlowClone ${{ github.ref_name }}
+
+            Unsigned / ad-hoc-signed build. On first launch, right-click the app
+            and choose **Open**, or run:
+            `xattr -dr com.apple.quarantine FlowClone.app`
+
+            Requires macOS 26 or later.

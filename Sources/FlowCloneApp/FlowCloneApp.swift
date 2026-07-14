@@ -26,6 +26,7 @@ struct FlowCloneApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let controller: AppController
+    private lazy var onboarding = OnboardingWindowController(controller: controller)
 
     override init() {
         // A failure here means persistence is unavailable; fall back to an
@@ -38,5 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         controller.startServices()
+        onboarding.showIfNeeded()
+    }
+
+    func showOnboarding() {
+        onboarding.show()
     }
 }

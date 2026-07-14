@@ -66,13 +66,18 @@ let package = Package(
             dependencies: ["PersistenceKit"]
         ),
 
+        // First-run onboarding walkthrough (presentational; snapshot-testable).
+        .target(
+            name: "OnboardingUI"
+        ),
+
         // The app itself: SwiftUI @main, MenuBarExtra, UI, dependency wiring.
         .executableTarget(
             name: "FlowCloneApp",
             dependencies: [
                 "FlowCore", "HotkeyService", "AudioService", "IndicatorUI",
                 "TranscriptionKit", "InjectionKit", "CleanupKit", "PersistenceKit",
-                "SettingsUI", "LearningKit",
+                "SettingsUI", "LearningKit", "OnboardingUI",
             ]
         ),
 
@@ -111,6 +116,10 @@ let package = Package(
         .testTarget(
             name: "LearningKitTests",
             dependencies: ["LearningKit"]
+        ),
+        .testTarget(
+            name: "OnboardingUITests",
+            dependencies: ["OnboardingUI"]
         ),
     ]
 )

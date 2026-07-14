@@ -16,6 +16,12 @@ final class SettingsStore: ObservableObject {
         static let ollamaModel = "cleanup.ollamaModel"
         static let groqModel = "cleanup.groqModel"
         static let learnFromCorrections = "learning.enabled"
+        static let hasCompletedOnboarding = "onboarding.completed"
+    }
+
+    var hasCompletedOnboarding: Bool {
+        get { defaults.bool(forKey: Keys.hasCompletedOnboarding) }
+        set { defaults.set(newValue, forKey: Keys.hasCompletedOnboarding) }
     }
 
     enum CleanupChoice: String, CaseIterable, Identifiable {

@@ -34,10 +34,15 @@ let package = Package(
             name: "IndicatorUI"
         ),
 
+        // Speech-to-text engines (Apple SpeechAnalyzer; Groq Whisper later).
+        .target(
+            name: "TranscriptionKit"
+        ),
+
         // The app itself: SwiftUI @main, MenuBarExtra, UI, dependency wiring.
         .executableTarget(
             name: "FlowCloneApp",
-            dependencies: ["FlowCore", "HotkeyService", "AudioService", "IndicatorUI"]
+            dependencies: ["FlowCore", "HotkeyService", "AudioService", "IndicatorUI", "TranscriptionKit"]
         ),
 
         .testTarget(
@@ -51,6 +56,10 @@ let package = Package(
         .testTarget(
             name: "IndicatorUITests",
             dependencies: ["IndicatorUI"]
+        ),
+        .testTarget(
+            name: "TranscriptionKitTests",
+            dependencies: ["TranscriptionKit"]
         ),
     ]
 )

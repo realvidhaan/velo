@@ -70,6 +70,11 @@ struct GeneralSettingsView: View {
 
             Section("General") {
                 Toggle("Launch at login", isOn: $settings.launchAtLogin)
+                Toggle("Learn from my corrections", isOn: $settings.learnFromCorrections)
+                if settings.learnFromCorrections {
+                    Text("When you edit dictated text, FlowClone notices recurring fixes and offers to add them to your dictionary. It reads the focused field to do this.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section("Permissions") {

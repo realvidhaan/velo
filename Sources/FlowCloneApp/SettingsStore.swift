@@ -15,6 +15,7 @@ final class SettingsStore: ObservableObject {
         static let cleanupEngine = "cleanup.engine"
         static let ollamaModel = "cleanup.ollamaModel"
         static let groqModel = "cleanup.groqModel"
+        static let learnFromCorrections = "learning.enabled"
     }
 
     enum CleanupChoice: String, CaseIterable, Identifiable {
@@ -54,6 +55,9 @@ final class SettingsStore: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet { updateLaunchAtLogin(launchAtLogin) }
     }
+    @Published var learnFromCorrections: Bool {
+        didSet { defaults.set(learnFromCorrections, forKey: Keys.learnFromCorrections) }
+    }
 
     init() {
         let modRaw = defaults.string(forKey: Keys.hotkeyModifier) ?? Hotkey.Modifier.fn.rawValue
@@ -64,6 +68,7 @@ final class SettingsStore: ObservableObject {
         groqModel = defaults.string(forKey: Keys.groqModel) ?? "llama-3.1-8b-instant"
         groqAPIKey = KeychainStore.get(.groqAPIKey) ?? ""
         launchAtLogin = SMAppService.mainApp.status == .enabled
+        learnFromCorrections = defaults.bool(forKey: Keys.learnFromCorrections)
     }
 
     var hotkey: Hotkey { Hotkey(kind: .modifier(hotkeyModifier)) }

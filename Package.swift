@@ -49,6 +49,11 @@ let package = Package(
             name: "CleanupKit"
         ),
 
+        // Deterministic "learning": diff user corrections into dictionary rules.
+        .target(
+            name: "LearningKit"
+        ),
+
         // Local persistence: Keychain (secrets) + SwiftData models/stores.
         .target(
             name: "PersistenceKit"
@@ -67,7 +72,7 @@ let package = Package(
             dependencies: [
                 "FlowCore", "HotkeyService", "AudioService", "IndicatorUI",
                 "TranscriptionKit", "InjectionKit", "CleanupKit", "PersistenceKit",
-                "SettingsUI",
+                "SettingsUI", "LearningKit",
             ]
         ),
 
@@ -102,6 +107,10 @@ let package = Package(
         .testTarget(
             name: "SettingsUITests",
             dependencies: ["SettingsUI"]
+        ),
+        .testTarget(
+            name: "LearningKitTests",
+            dependencies: ["LearningKit"]
         ),
     ]
 )

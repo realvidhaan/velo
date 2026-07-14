@@ -1,6 +1,7 @@
 import SwiftUI
 import FlowCore
 import HotkeyService
+import LearningKit
 
 struct MenuBarContentView: View {
     @ObservedObject var controller: AppController
@@ -31,6 +32,14 @@ struct MenuBarContentView: View {
             Button("Grant Accessibility…") {
                 controller.requestAccessibility()
             }
+        }
+
+        if let suggestion = controller.pendingSuggestion {
+            Divider()
+            Text("Add “\(suggestion.from)” → “\(suggestion.to)” to dictionary?")
+                .foregroundStyle(.secondary)
+            Button("Add to dictionary") { controller.acceptSuggestion() }
+            Button("Dismiss") { controller.dismissSuggestion() }
         }
 
         if !controller.lastTranscript.isEmpty {

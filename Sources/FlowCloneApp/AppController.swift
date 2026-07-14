@@ -9,6 +9,7 @@ import TranscriptionKit
 import InjectionKit
 import CleanupKit
 import PersistenceKit
+import LearningKit
 
 /// Top-level runtime coordinator. Owns the hotkey, audio, and indicator, and
 /// drives the shared `DictationStateMachine`. In M1 the pipeline ends after
@@ -34,6 +35,14 @@ final class AppController: ObservableObject {
     private var targetBundleID: String?
     /// Timestamp when the user released the key (for latency measurement).
     private var releaseTime: Date?
+
+    // Correction capture ("learning").
+    private let corrections = CorrectionObserver(store: UserDefaultsCorrectionCountStore())
+    /// Snapshot of the focused field just after our last injection, used to
+    /// detect the user's edits before the next dictation.
+    private var postInjectionSnapshot: (text: String, bundleID: String?)?
+    /// A substitution that recurred enough to suggest adding to the dictionary.
+    @Published private(set) var pendingSuggestion: Substitution?
 
     @Published private(set) var state: DictationState = .idle
     @Published private(set) var hotkeyActive = false
@@ -118,6 +127,8 @@ final class AppController: ObservableObject {
         // Capture the target app now (FlowClone is a menu-bar agent and never
         // becomes frontmost, so this stays the user's app through the session).
         targetBundleID = FocusedAppInspector.frontmostBundleID
+        // Before recording, check whether the user edited our last injection.
+        detectCorrectionIfEnabled()
         // Start capturing immediately (cheap), but only reveal the pill and
         // commit to the session after the debounce, so taps don't flicker.
         startAudio()
@@ -249,11 +260,54 @@ final class AppController: ObservableObject {
         ))
     }
 
+    // MARK: Correction capture
+
+    /// If enabled, diff the focused field against our last injection to detect a
+    /// user correction, and surface a dictionary suggestion if one recurs.
+    private func detectCorrectionIfEnabled() {
+        guard settings.learnFromCorrections,
+              let snapshot = postInjectionSnapshot,
+              snapshot.bundleID == FocusedAppInspector.frontmostBundleID,
+              let current = FocusedFieldReader.focusedText(),
+              current != snapshot.text else { return }
+        postInjectionSnapshot = nil
+        let suggestions = corrections.record(injected: snapshot.text, corrected: current)
+        if let first = suggestions.first {
+            pendingSuggestion = first
+        }
+    }
+
+    private func captureCorrectionBaseline() {
+        guard settings.learnFromCorrections else { return }
+        let bundleID = targetBundleID
+        // Read after a beat so the paste has landed in the field.
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let self else { return }
+            if let text = FocusedFieldReader.focusedText() {
+                self.postInjectionSnapshot = (text, bundleID)
+            }
+        }
+    }
+
+    func acceptSuggestion() {
+        guard let suggestion = pendingSuggestion else { return }
+        dataStore.addDictionaryEntry(DictionaryEntry(written: suggestion.to, spoken: suggestion.from))
+        corrections.clear(suggestion)
+        pendingSuggestion = nil
+    }
+
+    func dismissSuggestion() {
+        if let suggestion = pendingSuggestion { corrections.clear(suggestion) }
+        pendingSuggestion = nil
+    }
+
     private func inject(_ text: String) {
         do {
             try injector.inject(text)
             transition(.injected)          // -> idle
             indicator.hide()
+            captureCorrectionBaseline()
         } catch InjectionError.secureInputActive {
             log.notice("Secure input active; text left on clipboard")
             indicator.setState(.error("Secure field — copied instead"))

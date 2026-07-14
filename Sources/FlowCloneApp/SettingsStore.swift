@@ -17,6 +17,8 @@ final class SettingsStore: ObservableObject {
         static let groqModel = "cleanup.groqModel"
         static let learnFromCorrections = "learning.enabled"
         static let hasCompletedOnboarding = "onboarding.completed"
+        static let commandModifier = "command.modifier"
+        static let commandModeEnabled = "command.enabled"
     }
 
     var hasCompletedOnboarding: Bool {
@@ -64,6 +66,12 @@ final class SettingsStore: ObservableObject {
     @Published var learnFromCorrections: Bool {
         didSet { defaults.set(learnFromCorrections, forKey: Keys.learnFromCorrections) }
     }
+    @Published var commandModifier: Hotkey.Modifier {
+        didSet { defaults.set(commandModifier.rawValue, forKey: Keys.commandModifier) }
+    }
+    @Published var commandModeEnabled: Bool {
+        didSet { defaults.set(commandModeEnabled, forKey: Keys.commandModeEnabled) }
+    }
 
     init() {
         let modRaw = defaults.string(forKey: Keys.hotkeyModifier) ?? Hotkey.Modifier.fn.rawValue
@@ -75,9 +83,13 @@ final class SettingsStore: ObservableObject {
         groqAPIKey = KeychainStore.get(.groqAPIKey) ?? ""
         launchAtLogin = SMAppService.mainApp.status == .enabled
         learnFromCorrections = defaults.bool(forKey: Keys.learnFromCorrections)
+        let cmdRaw = defaults.string(forKey: Keys.commandModifier) ?? Hotkey.Modifier.rightOption.rawValue
+        commandModifier = Hotkey.Modifier(rawValue: cmdRaw) ?? .rightOption
+        commandModeEnabled = defaults.object(forKey: Keys.commandModeEnabled) as? Bool ?? true
     }
 
     var hotkey: Hotkey { Hotkey(kind: .modifier(hotkeyModifier)) }
+    var commandHotkey: Hotkey { Hotkey(kind: .modifier(commandModifier)) }
 
     private func updateLaunchAtLogin(_ enabled: Bool) {
         do {

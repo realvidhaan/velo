@@ -49,6 +49,20 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            Section("Command Mode") {
+                Toggle("Enable Command Mode", isOn: $settings.commandModeEnabled)
+                if settings.commandModeEnabled {
+                    Picker("Command hotkey", selection: $settings.commandModifier) {
+                        ForEach(Hotkey.Modifier.allCases, id: \.self) { mod in
+                            Text(mod.displayName).tag(mod)
+                        }
+                    }
+                    .onChange(of: settings.commandModifier) { _, _ in controller.applyHotkeySetting() }
+                    Text("Select text, hold this key, speak an instruction (e.g. “make this more formal”), and the selection is replaced.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             Section("Cleanup engine") {
                 Picker("Engine", selection: $settings.cleanupChoice) {
                     ForEach(SettingsStore.CleanupChoice.allCases) { choice in

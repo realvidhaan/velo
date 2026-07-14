@@ -11,6 +11,7 @@ import CleanupKit
 import PersistenceKit
 import LearningKit
 import OnboardingUI
+import CommandModeKit
 
 /// Top-level runtime coordinator. Owns the hotkey, audio, and indicator, and
 /// drives the shared `DictationStateMachine`. In M1 the pipeline ends after
@@ -21,6 +22,7 @@ final class AppController: ObservableObject {
     private let log = Logger(subsystem: "com.flowclone.app", category: "AppController")
 
     private let hotkeys: HotkeyService
+    private let commandHotkeys: HotkeyService
     private let audio = AudioCaptureService()
     let indicator = IndicatorController()
 
@@ -36,6 +38,10 @@ final class AppController: ObservableObject {
     private var targetBundleID: String?
     /// Timestamp when the user released the key (for latency measurement).
     private var releaseTime: Date?
+    /// Which flavor of session is currently running.
+    private var currentMode: SessionMode = .dictation
+    /// The selected text captured when Command Mode started.
+    private var commandSelection: String?
 
     // Correction capture ("learning").
     private let corrections = CorrectionObserver(store: UserDefaultsCorrectionCountStore())
@@ -64,12 +70,16 @@ final class AppController: ObservableObject {
         self.dataStore = dataStore
         self.settings = settings
         self.hotkeys = HotkeyService(hotkey: settings.hotkey)
+        self.commandHotkeys = HotkeyService(hotkey: settings.commandHotkey)
         audio.onLevel = { [weak self] level in
             self?.lastLevel = level
             self?.indicator.update(level: level)
         }
         hotkeys.onEvent = { [weak self] event in
-            self?.handle(hotkey: event)
+            self?.handle(hotkey: event, mode: .dictation)
+        }
+        commandHotkeys.onEvent = { [weak self] event in
+            self?.handle(hotkey: event, mode: .command)
         }
         // Seed the built-in app profiles on first run.
         dataStore.seedAppProfilesIfNeeded(
@@ -77,9 +87,10 @@ final class AppController: ObservableObject {
         )
     }
 
-    /// Re-applies the configured hotkey (called when the user changes it).
+    /// Re-applies the configured hotkeys (called when the user changes them).
     func applyHotkeySetting() {
         hotkeys.update(hotkey: settings.hotkey)
+        commandHotkeys.update(hotkey: settings.commandHotkey)
     }
 
     // MARK: Startup
@@ -98,6 +109,7 @@ final class AppController: ObservableObject {
             HotkeyService.requestInputMonitoring()
         }
         hotkeyActive = hotkeys.start()
+        if settings.commandModeEnabled { commandHotkeys.start() }
         if !hotkeyActive {
             log.notice("Hotkey inactive — Input Monitoring not granted yet")
         }
@@ -163,10 +175,10 @@ final class AppController: ObservableObject {
 
     // MARK: Hotkey handling
 
-    private func handle(hotkey event: HotkeyEvent) {
+    private func handle(hotkey event: HotkeyEvent, mode: SessionMode) {
         switch event {
         case .down:
-            beginArming()
+            beginSession(mode)
         case .up:
             endRecording()
         case .cancel:
@@ -174,13 +186,25 @@ final class AppController: ObservableObject {
         }
     }
 
-    private func beginArming() {
+    private func beginSession(_ mode: SessionMode) {
         guard case .idle = state else { return }
+        currentMode = mode
         // Capture the target app now (FlowClone is a menu-bar agent and never
         // becomes frontmost, so this stays the user's app through the session).
         targetBundleID = FocusedAppInspector.frontmostBundleID
-        // Before recording, check whether the user edited our last injection.
-        detectCorrectionIfEnabled()
+
+        if mode == .command {
+            // Command Mode needs a selection to edit.
+            guard let selection = SelectionReader.read(), !selection.isEmpty else {
+                showTransientError("Select text first")
+                return
+            }
+            commandSelection = selection
+        } else {
+            // Before dictation, check whether the user edited our last injection.
+            detectCorrectionIfEnabled()
+        }
+
         // Start capturing immediately (cheap), but only reveal the pill and
         // commit to the session after the debounce, so taps don't flicker.
         startAudio()
@@ -189,7 +213,7 @@ final class AppController: ObservableObject {
             guard let self else { return }
             try? await Task.sleep(for: self.holdDebounce)
             guard !Task.isCancelled else { return }
-            self.transition(.hotkeyDown(.dictation))
+            self.transition(.hotkeyDown(mode))
             self.indicator.show(.recording)
             await self.startSession()
         }
@@ -252,6 +276,12 @@ final class AppController: ObservableObject {
                 indicator.hide()
                 return
             }
+
+            if currentMode == .command {
+                await runCommandEdit(instruction: transcript)
+                return
+            }
+
             // cleaning: run the LLM cleanup pass (or fast/deterministic path).
             let hint = dataStore.hint(forBundleID: targetBundleID)
                 ?? AppProfileDefaults.hint(forBundleID: targetBundleID)
@@ -297,6 +327,51 @@ final class AppController: ObservableObject {
             return [OllamaCleanupEngine(model: settings.ollamaModel)]
         case .localOnly:
             return []
+        }
+    }
+
+    // MARK: Command Mode
+
+    /// Applies the spoken instruction to the captured selection and replaces it.
+    private func runCommandEdit(instruction: String) async {
+        guard let selection = commandSelection else {
+            state = .idle
+            indicator.hide()
+            return
+        }
+        commandSelection = nil
+        do {
+            let edited = try await commandRunner().run(
+                CommandRequest(selection: selection, instruction: instruction)
+            )
+            lastTranscript = edited
+            transition(.cleaned(edited))    // -> injecting
+            // The selection is still highlighted, so paste replaces it.
+            inject(edited)
+        } catch {
+            log.error("Command edit failed: \(error.localizedDescription, privacy: .public)")
+            indicator.setState(.error("Couldn't edit selection"))
+            transition(.failed("Command failed"))
+            scheduleErrorReset()
+        }
+    }
+
+    private func commandRunner() -> CommandRunner {
+        var editors: [any CommandEditor] = []
+        if let key = KeychainStore.get(.groqAPIKey), !key.isEmpty {
+            editors.append(GroqCommandEditor(apiKey: key, model: settings.groqModel))
+        }
+        editors.append(FoundationModelCommandEditor())
+        return CommandRunner(editors: editors)
+    }
+
+    /// Shows an error on the pill for ~1.5s without touching the state machine
+    /// (used for pre-session failures like "no selection").
+    private func showTransientError(_ message: String) {
+        indicator.show(.error(message))
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(1500))
+            self?.indicator.hide()
         }
     }
 

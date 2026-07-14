@@ -54,6 +54,12 @@ let package = Package(
             name: "LearningKit"
         ),
 
+        // v2 Command Mode: read selection, speak an edit, replace it.
+        .target(
+            name: "CommandModeKit",
+            dependencies: ["CleanupKit", "InjectionKit"]
+        ),
+
         // Local persistence: Keychain (secrets) + SwiftData models/stores.
         .target(
             name: "PersistenceKit"
@@ -77,7 +83,7 @@ let package = Package(
             dependencies: [
                 "FlowCore", "HotkeyService", "AudioService", "IndicatorUI",
                 "TranscriptionKit", "InjectionKit", "CleanupKit", "PersistenceKit",
-                "SettingsUI", "LearningKit", "OnboardingUI",
+                "SettingsUI", "LearningKit", "OnboardingUI", "CommandModeKit",
             ]
         ),
 
@@ -120,6 +126,10 @@ let package = Package(
         .testTarget(
             name: "OnboardingUITests",
             dependencies: ["OnboardingUI"]
+        ),
+        .testTarget(
+            name: "CommandModeKitTests",
+            dependencies: ["CommandModeKit"]
         ),
     ]
 )

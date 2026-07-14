@@ -3,6 +3,9 @@ import Foundation
 /// Minimal client for any OpenAI-compatible `/chat/completions` endpoint. Powers
 /// both the Groq (cloud) and Ollama (localhost) cleanup engines.
 public struct OpenAICompatibleClient: Sendable {
+    /// Groq's OpenAI-compatible base URL, shared by the cleanup and command engines.
+    public static let groqBaseURL = URL(string: "https://api.groq.com/openai/v1")!
+
     public let baseURL: URL
     public let apiKey: String?
     public let model: String

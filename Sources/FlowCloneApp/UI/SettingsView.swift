@@ -51,6 +51,7 @@ struct GeneralSettingsView: View {
 
             Section("Command Mode") {
                 Toggle("Enable Command Mode", isOn: $settings.commandModeEnabled)
+                    .onChange(of: settings.commandModeEnabled) { _, _ in controller.applyCommandModeSetting() }
                 if settings.commandModeEnabled {
                     Picker("Command hotkey", selection: $settings.commandModifier) {
                         ForEach(Hotkey.Modifier.allCases, id: \.self) { mod in

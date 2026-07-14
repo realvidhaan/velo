@@ -8,24 +8,17 @@ import AppKit
 public enum FocusedFieldReader {
     /// The full text value of the focused element, if available.
     public static func focusedText() -> String? {
-        guard Accessibility.isTrusted else { return nil }
-        let system = AXUIElementCreateSystemWide()
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let element = focused else {
-            return nil
-        }
-        let axElement = element as! AXUIElement
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axElement, kAXValueAttribute as CFString, &value) == .success,
-              let string = value as? String else {
-            return nil
-        }
-        return string
+        stringAttribute(kAXValueAttribute)
     }
 
     /// The selected text of the focused element, if available (for Command Mode).
     public static func selectedText() -> String? {
+        guard let selected = stringAttribute(kAXSelectedTextAttribute), !selected.isEmpty else { return nil }
+        return selected
+    }
+
+    /// Walks to the system-wide focused UI element and copies a string attribute.
+    private static func stringAttribute(_ attribute: String) -> String? {
         guard Accessibility.isTrusted else { return nil }
         let system = AXUIElementCreateSystemWide()
         var focused: CFTypeRef?
@@ -35,8 +28,8 @@ public enum FocusedFieldReader {
         }
         let axElement = element as! AXUIElement
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axElement, kAXSelectedTextAttribute as CFString, &value) == .success,
-              let string = value as? String, !string.isEmpty else {
+        guard AXUIElementCopyAttributeValue(axElement, attribute as CFString, &value) == .success,
+              let string = value as? String else {
             return nil
         }
         return string

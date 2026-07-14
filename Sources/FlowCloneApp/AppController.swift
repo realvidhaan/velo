@@ -93,6 +93,16 @@ final class AppController: ObservableObject {
         commandHotkeys.update(hotkey: settings.commandHotkey)
     }
 
+    /// Starts or stops the command-mode tap when the user toggles the feature.
+    func applyCommandModeSetting() {
+        if settings.commandModeEnabled {
+            commandHotkeys.update(hotkey: settings.commandHotkey)
+            commandHotkeys.start()
+        } else {
+            commandHotkeys.stop()
+        }
+    }
+
     // MARK: Startup
 
     /// Requests permissions and starts the hotkey tap. Safe to call repeatedly
@@ -180,14 +190,16 @@ final class AppController: ObservableObject {
         case .down:
             beginSession(mode)
         case .up:
-            endRecording()
+            endRecording(mode: mode)
         case .cancel:
-            cancel()
+            cancel(mode: mode)
         }
     }
 
     private func beginSession(_ mode: SessionMode) {
-        guard case .idle = state else { return }
+        // `armTask == nil` also blocks a second press during the debounce window,
+        // when `state` is still `.idle` but a session is already arming.
+        guard case .idle = state, armTask == nil else { return }
         currentMode = mode
         // Capture the target app now (FlowClone is a menu-bar agent and never
         // becomes frontmost, so this stays the user's app through the session).
@@ -208,7 +220,6 @@ final class AppController: ObservableObject {
         // Start capturing immediately (cheap), but only reveal the pill and
         // commit to the session after the debounce, so taps don't flicker.
         startAudio()
-        armTask?.cancel()
         armTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: self.holdDebounce)
@@ -216,6 +227,7 @@ final class AppController: ObservableObject {
             self.transition(.hotkeyDown(mode))
             self.indicator.show(.recording)
             await self.startSession()
+            self.armTask = nil
         }
     }
 
@@ -240,7 +252,10 @@ final class AppController: ObservableObject {
         }
     }
 
-    private func endRecording() {
+    private func endRecording(mode: SessionMode) {
+        // Only the hotkey that started the session can end it, so tapping the
+        // command hotkey doesn't terminate an active dictation (and vice-versa).
+        guard mode == currentMode else { return }
         armTask?.cancel()
         armTask = nil
         audio.onBuffer = nil
@@ -271,8 +286,9 @@ final class AppController: ObservableObject {
             let transcript = try await session.finish()
             log.info("Transcript: \(transcript, privacy: .public)")
             transition(.transcriptFinalized(transcript))
-            guard !transcript.isEmpty else {
-                // Machine already returned to idle on empty transcript.
+            // If the user cancelled while we were finalizing (or the transcript
+            // was empty), the machine is back to idle — stop here, don't inject.
+            guard case .cleaning = state else {
                 indicator.hide()
                 return
             }
@@ -288,8 +304,10 @@ final class AppController: ObservableObject {
             let terms = dataStore.activeDictionaryTerms()
             let request = CleanupRequest(raw: transcript, dictionary: terms, appHint: hint)
             let (cleaned, llmName) = await runCleanup(request)
-            lastTranscript = cleaned
             transition(.cleaned(cleaned))       // cleaning -> injecting
+            // Bail if cancelled during the (possibly slow) cleanup pass.
+            guard case .injecting = state else { return }
+            lastTranscript = cleaned
             inject(cleaned)
             recordHistory(raw: transcript, cleaned: cleaned, llmEngine: llmName)
         } catch {
@@ -344,8 +362,10 @@ final class AppController: ObservableObject {
             let edited = try await commandRunner().run(
                 CommandRequest(selection: selection, instruction: instruction)
             )
-            lastTranscript = edited
             transition(.cleaned(edited))    // -> injecting
+            // Bail if the user cancelled while the edit was running.
+            guard case .injecting = state else { return }
+            lastTranscript = edited
             // The selection is still highlighted, so paste replaces it.
             inject(edited)
         } catch {
@@ -453,7 +473,10 @@ final class AppController: ObservableObject {
         }
     }
 
-    private func cancel() {
+    private func cancel(mode: SessionMode) {
+        // Esc is emitted on both taps; only the one matching the active session
+        // acts (the other is a no-op).
+        guard mode == currentMode else { return }
         armTask?.cancel()
         armTask = nil
         audio.onBuffer = nil

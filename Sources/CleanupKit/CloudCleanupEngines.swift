@@ -9,7 +9,7 @@ public struct GroqCleanupEngine: CleanupEngine {
 
     public init(apiKey: String?, model: String = "llama-3.1-8b-instant", timeout: TimeInterval = 2.5) {
         self.client = OpenAICompatibleClient(
-            baseURL: URL(string: "https://api.groq.com/openai/v1")!,
+            baseURL: OpenAICompatibleClient.groqBaseURL,
             apiKey: apiKey,
             model: model
         )

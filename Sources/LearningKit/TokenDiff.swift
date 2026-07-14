@@ -80,10 +80,11 @@ public enum TokenDiff {
             .filter { !$0.lower.isEmpty }
     }
 
+    /// Caller (`substitutions`) guarantees both arrays are non-empty.
     private static func lcsTable(_ a: [Token], _ b: [Token]) -> [[Int]] {
         var table = Array(repeating: Array(repeating: 0, count: b.count + 1), count: a.count + 1)
-        for i in 1...max(a.count, 1) where i <= a.count {
-            for j in 1...max(b.count, 1) where j <= b.count {
+        for i in 1...a.count {
+            for j in 1...b.count {
                 if a[i - 1].lower == b[j - 1].lower {
                     table[i][j] = table[i - 1][j - 1] + 1
                 } else {

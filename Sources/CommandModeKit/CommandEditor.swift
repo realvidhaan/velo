@@ -70,7 +70,7 @@ public struct GroqCommandEditor: CommandEditor {
     private let client: OpenAICompatibleClient
     public init(apiKey: String?, model: String = "llama-3.1-8b-instant") {
         self.client = OpenAICompatibleClient(
-            baseURL: URL(string: "https://api.groq.com/openai/v1")!,
+            baseURL: OpenAICompatibleClient.groqBaseURL,
             apiKey: apiKey, model: model
         )
     }

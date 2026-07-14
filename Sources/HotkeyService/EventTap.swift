@@ -142,13 +142,10 @@ public final class EventTap: @unchecked Sendable {
         }
 
         // A regular key pressed while the modifier hotkey is held → the user is
-        // using it as a real modifier. Cancel the session; pass the key through.
+        // using it as a real modifier (or pressed Esc). Cancel the session; pass
+        // the key through.
         if type == .keyDown, modifierHeld {
-            if event.getIntegerValueField(.keyboardEventKeycode) == Self.escKeyCode {
-                emit(.cancel)
-            } else {
-                emit(.cancel)
-            }
+            emit(.cancel)
         }
         return Unmanaged.passUnretained(event)
     }

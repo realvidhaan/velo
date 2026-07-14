@@ -20,7 +20,7 @@ public enum SelectionReader {
         let snapshot = PasteboardSnapshot.capture(pb)
         let beforeCount = pb.changeCount
 
-        postCommandC()
+        KeyEventPoster.post(keyCode: KeyEventPoster.cKeyCode, flags: .maskCommand)
 
         // Give the target app a moment to service the copy.
         let deadline = Date().addingTimeInterval(0.3)
@@ -32,16 +32,5 @@ public enum SelectionReader {
         snapshot.restore(to: pb)
         guard let copied, !copied.isEmpty else { return nil }
         return copied
-    }
-
-    private static func postCommandC() {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let cKey: CGKeyCode = 0x08
-        let down = CGEvent(keyboardEventSource: source, virtualKey: cKey, keyDown: true)
-        down?.flags = .maskCommand
-        let up = CGEvent(keyboardEventSource: source, virtualKey: cKey, keyDown: false)
-        up?.flags = .maskCommand
-        down?.post(tap: .cghidEventTap)
-        up?.post(tap: .cghidEventTap)
     }
 }

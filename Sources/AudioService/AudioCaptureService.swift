@@ -67,8 +67,11 @@ public final class AudioCaptureService {
         let format = input.outputFormat(forBus: 0)
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
             let rms = Self.rms(of: buffer)
+            // The engine may recycle `buffer` once this block returns, so copy it
+            // before handing it to an async task on the main actor.
+            guard let copy = Self.copy(buffer) else { return }
             Task { @MainActor [weak self] in
-                self?.publish(rms: rms, buffer: buffer)
+                self?.publish(rms: rms, buffer: copy)
             }
         }
     }
@@ -102,6 +105,23 @@ public final class AudioCaptureService {
     }
 
     // MARK: Helpers
+
+    /// Deep-copies a PCM buffer so it survives past the realtime tap block.
+    private static func copy(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength) else {
+            return nil
+        }
+        copy.frameLength = buffer.frameLength
+        let src = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: buffer.audioBufferList))
+        let dst = UnsafeMutableAudioBufferListPointer(copy.mutableAudioBufferList)
+        for i in 0..<min(src.count, dst.count) {
+            guard let s = src[i].mData, let d = dst[i].mData else { continue }
+            let bytes = Int(src[i].mDataByteSize)
+            memcpy(d, s, bytes)
+            dst[i].mDataByteSize = src[i].mDataByteSize
+        }
+        return copy
+    }
 
     private static func rms(of buffer: AVAudioPCMBuffer) -> Float {
         guard let channelData = buffer.floatChannelData else { return 0 }

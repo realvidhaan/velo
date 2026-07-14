@@ -29,10 +29,9 @@ public struct PasteboardSnapshot: Sendable {
         return PasteboardSnapshot(items: items, changeCount: pasteboard.changeCount)
     }
 
-    /// Writes the captured contents back. Returns whether it restored (false ⇒
-    /// unconditional restore only; use `restoreIfUnchanged` for the guarded path).
-    @discardableResult
-    public func restore(to pasteboard: NSPasteboard = .general) -> Bool {
+    /// Writes the captured contents back over the pasteboard. Callers that want
+    /// the "only if unchanged" guard compare `changeCount` before calling.
+    public func restore(to pasteboard: NSPasteboard = .general) {
         pasteboard.clearContents()
         let newItems: [NSPasteboardItem] = items.map { item in
             let pbItem = NSPasteboardItem()
@@ -44,6 +43,5 @@ public struct PasteboardSnapshot: Sendable {
         if !newItems.isEmpty {
             pasteboard.writeObjects(newItems)
         }
-        return true
     }
 }

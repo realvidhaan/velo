@@ -24,6 +24,12 @@ struct MenuBarContentView: View {
             }
         }
 
+        if !controller.lastTranscript.isEmpty {
+            Divider()
+            Text("Last: \(controller.lastTranscript)")
+                .foregroundStyle(.secondary)
+        }
+
         Divider()
 
         Button("Quit FlowClone") {

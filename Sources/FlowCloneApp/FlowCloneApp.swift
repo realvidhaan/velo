@@ -38,6 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Default to launching at login so the app is always available (survives
+        // reboots); one-time, and the user can turn it off in Settings.
+        controller.settings.applyDefaultLaunchAtLoginIfNeeded()
         controller.startServices()
         onboarding.showIfNeeded()
     }

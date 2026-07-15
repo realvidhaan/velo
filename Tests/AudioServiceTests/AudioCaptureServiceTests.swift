@@ -35,4 +35,21 @@ final class AudioCaptureServiceTests: XCTestCase {
         await fulfillment(of: [tapFired], timeout: 3.0)
         XCTAssertGreaterThanOrEqual(service.level, 0)
     }
+
+    /// Regression test for the sleep/wake crash: AVFAudio posts
+    /// `.AVAudioEngineConfigurationChange` on a background queue when the audio
+    /// unit is rebuilt on wake. The handler used to be `@MainActor`-isolated, so
+    /// being invoked off-main tripped Swift 6's executor check and SIGTRAP'd the
+    /// whole app every time the Mac woke. It's now `nonisolated`; invoking it off
+    /// the main thread must return cleanly. No audio hardware needed.
+    @MainActor
+    func testConfigurationChangeOffMainDoesNotTrap() async {
+        let service = AudioCaptureService()
+        let handled = expectation(description: "config-change handled off-main without trapping")
+        DispatchQueue.global(qos: .userInitiated).async {
+            service.configurationChanged(Notification(name: .AVAudioEngineConfigurationChange))
+            handled.fulfill()
+        }
+        await fulfillment(of: [handled], timeout: 2.0)
+    }
 }

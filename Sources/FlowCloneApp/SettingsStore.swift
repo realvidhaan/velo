@@ -21,6 +21,7 @@ final class SettingsStore: ObservableObject {
         static let hasCompletedOnboarding = "onboarding.completed"
         static let commandModifier = "command.modifier"
         static let commandModeEnabled = "command.enabled"
+        static let launchAtLoginDefaulted = "launchAtLogin.defaulted"
     }
 
     var hasCompletedOnboarding: Bool {
@@ -117,6 +118,18 @@ final class SettingsStore: ObservableObject {
 
     var hotkey: Hotkey { Hotkey(kind: .modifier(hotkeyModifier)) }
     var commandHotkey: Hotkey { Hotkey(kind: .modifier(commandModifier)) }
+
+    /// Turns on "launch at login" once, on first run — a menu-bar dictation app
+    /// is meant to always be available, so it should come back after a reboot
+    /// without the user relaunching it. Only applied a single time; if the user
+    /// later disables it in Settings, that choice sticks.
+    func applyDefaultLaunchAtLoginIfNeeded() {
+        guard !defaults.bool(forKey: Keys.launchAtLoginDefaulted) else { return }
+        defaults.set(true, forKey: Keys.launchAtLoginDefaulted)
+        if SMAppService.mainApp.status != .enabled {
+            launchAtLogin = true // didSet registers the login item
+        }
+    }
 
     private func updateLaunchAtLogin(_ enabled: Bool) {
         do {

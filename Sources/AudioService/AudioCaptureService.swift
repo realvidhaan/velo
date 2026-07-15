@@ -101,8 +101,25 @@ public final class AudioCaptureService {
         onLevel?(value)
     }
 
-    @objc private func configurationChanged(_ note: Notification) {
-        // Input device changed (e.g. AirPods connected). Re-tap if we were running.
+    /// `nonisolated` is load-bearing: AVFAudio posts
+    /// `.AVAudioEngineConfigurationChange` on a **background** dispatch queue
+    /// (notably when the audio IO unit is torn down and re-established on
+    /// **sleep/wake**). A `@MainActor`-isolated `@objc` selector invoked off-main
+    /// trips Swift 6's executor assertion and SIGTRAPs the whole app — which is
+    /// exactly why FlowClone was dying every time the Mac woke. So take the
+    /// notification on whatever thread it arrives on and hop to the main actor to
+    /// do the real work.
+    /// Internal (not private) so a test can invoke it off-main to reproduce the
+    /// sleep/wake crash condition without real audio hardware.
+    @objc nonisolated func configurationChanged(_ note: Notification) {
+        Task { @MainActor [weak self] in
+            self?.handleConfigurationChange()
+        }
+    }
+
+    private func handleConfigurationChange() {
+        // Input device changed (e.g. AirPods connected) or the audio unit was
+        // rebuilt on wake. Re-tap if we were running.
         guard running else { return }
         log.info("Audio configuration changed; re-tapping input")
         engine.inputNode.removeTap(onBus: 0)

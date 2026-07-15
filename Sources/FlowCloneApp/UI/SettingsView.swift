@@ -64,6 +64,22 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            Section("Speech recognition") {
+                Picker("Engine", selection: $settings.sttChoice) {
+                    ForEach(SettingsStore.STTChoice.allCases) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+                if settings.sttChoice == .groqWhisper || settings.sttChoice == .auto {
+                    SecureField("Groq API key", text: $settings.groqAPIKey)
+                    Text("Free key at console.groq.com. Audio is sent to Groq for transcription.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if settings.sttChoice == .whisperKit || settings.sttChoice == .auto {
+                    whisperKitModelRow
+                }
+            }
+
             Section("Cleanup engine") {
                 Picker("Engine", selection: $settings.cleanupChoice) {
                     ForEach(SettingsStore.CleanupChoice.allCases) { choice in
@@ -107,5 +123,31 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// Download / status control for the on-device WhisperKit model. Kept opt-in
+    /// (never auto-downloads) since the model is ~600 MB.
+    @ViewBuilder private var whisperKitModelRow: some View {
+        if controller.whisperKitInstalled {
+            LabeledContent("On-device model") {
+                Text("Installed").foregroundStyle(.green)
+            }
+        } else if controller.whisperKitDownloading {
+            LabeledContent("On-device model") {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Downloading…").foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            Button("Download on-device model (~600 MB)") {
+                controller.downloadWhisperKitModel()
+            }
+            Text("Runs Whisper fully offline on the Neural Engine. One-time download.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        if let error = controller.whisperKitError {
+            Text(error).font(.caption).foregroundStyle(.red)
+        }
     }
 }

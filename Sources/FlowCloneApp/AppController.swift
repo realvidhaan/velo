@@ -26,7 +26,10 @@ final class AppController: ObservableObject {
     private let audio = AudioCaptureService()
     let indicator = IndicatorController()
 
-    private let sttEngine: any TranscriptionEngine = SpeechAnalyzerEngine()
+    /// The active STT engine, cached and rebuilt only when the user's choice (or
+    /// the presence of a Groq key) changes — WhisperKit caches a loaded model, so
+    /// we must not rebuild it per-session.
+    private var cachedSTT: (engine: any TranscriptionEngine, choice: SettingsStore.STTChoice, hasKey: Bool)?
     private var session: (any TranscriptionSession)?
     private let injector: any TextInjector = PasteInjector()
 
@@ -61,6 +64,10 @@ final class AppController: ObservableObject {
     @Published private(set) var accessibilityGranted = false
     @Published private(set) var microphoneGranted = false
     @Published private(set) var speechModelInstalled = false
+    /// On-device WhisperKit model state, for the Settings download control.
+    @Published private(set) var whisperKitInstalled = WhisperKitEngine.isModelInstalled()
+    @Published private(set) var whisperKitDownloading = false
+    @Published private(set) var whisperKitError: String?
     @Published private(set) var lastLevel: Float = 0
     /// The most recent transcript, surfaced in the menu (visible proof STT works
     /// before injection lands in M3).
@@ -119,9 +126,14 @@ final class AppController: ObservableObject {
     /// (e.g. after the user grants a permission in System Settings).
     func startServices() {
         Task { self.microphoneGranted = await AudioCaptureService.requestMicrophone() }
-        // Pre-install the speech model so the first dictation isn't slow.
+        // Pre-warm the speech model so the first dictation isn't slow — but never
+        // trigger WhisperKit's large model download on launch; that's opt-in via
+        // onboarding. Apple/Groq have no (or trivial) prepare cost.
         Task {
-            try? await sttEngine.prepare()
+            let engine = sttEngine()
+            if !(engine is WhisperKitEngine) || WhisperKitEngine.isModelInstalled() {
+                try? await engine.prepare()
+            }
             self.speechModelInstalled = true
         }
 
@@ -255,7 +267,7 @@ final class AppController: ObservableObject {
     private func startSession(generation: Int) async {
         do {
             let terms = dataStore.activeDictionaryTerms()
-            let session = try await sttEngine.makeSession(contextualStrings: terms)
+            let session = try await sttEngine().makeSession(contextualStrings: terms)
             // Only attach if we're still recording *and* this is still the current
             // session. A stale `makeSession` suspended across a cancel + new session
             // must not hijack the newer session's audio feed (ABA guard).
@@ -378,6 +390,64 @@ final class AppController: ObservableObject {
         }
     }
 
+    // MARK: Speech-to-text engine selection
+
+    /// The current STT engine for the user's `sttChoice`, cached so a stateful
+    /// engine (WhisperKit's loaded model) survives across sessions. Rebuilds only
+    /// when the choice or Groq-key presence changes.
+    private func sttEngine() -> any TranscriptionEngine {
+        let choice = settings.sttChoice
+        let key = KeychainStore.get(.groqAPIKey)
+        let hasKey = (key?.isEmpty == false)
+        if let cached = cachedSTT, cached.choice == choice, cached.hasKey == hasKey {
+            return cached.engine
+        }
+        let engine = buildSTTEngine(choice: choice, key: key, hasKey: hasKey)
+        cachedSTT = (engine, choice, hasKey)
+        return engine
+    }
+
+    /// - `.auto`: Groq Whisper (if a key is set) → WhisperKit (only if its model
+    ///   is already downloaded, so we never trigger a surprise download) → Apple
+    ///   SpeechAnalyzer as the always-available last resort.
+    private func buildSTTEngine(
+        choice: SettingsStore.STTChoice, key: String?, hasKey: Bool
+    ) -> any TranscriptionEngine {
+        switch choice {
+        case .auto:
+            var chain: [any TranscriptionEngine] = []
+            if hasKey { chain.append(GroqWhisperEngine(apiKey: key)) }
+            if WhisperKitEngine.isModelInstalled() { chain.append(WhisperKitEngine()) }
+            chain.append(SpeechAnalyzerEngine())
+            return chain.count == 1 ? chain[0] : AutoTranscriptionEngine(engines: chain)
+        case .groqWhisper:
+            return GroqWhisperEngine(apiKey: key)
+        case .whisperKit:
+            return WhisperKitEngine()
+        case .appleSpeech:
+            return SpeechAnalyzerEngine()
+        }
+    }
+
+    /// Downloads + loads the on-device WhisperKit model (~600 MB). Invoked from
+    /// Settings; the download is opt-in and never happens automatically.
+    func downloadWhisperKitModel() {
+        guard !whisperKitDownloading else { return }
+        whisperKitDownloading = true
+        whisperKitError = nil
+        Task {
+            do {
+                try await WhisperKitEngine().prepare()
+                self.whisperKitInstalled = WhisperKitEngine.isModelInstalled()
+                // Invalidate the cached engine so `.auto` picks up the new model.
+                self.cachedSTT = nil
+            } catch {
+                self.whisperKitError = error.localizedDescription
+            }
+            self.whisperKitDownloading = false
+        }
+    }
+
     // MARK: Command Mode
 
     /// Applies the spoken instruction to the captured selection and replaces it.
@@ -431,7 +501,7 @@ final class AppController: ObservableObject {
         dataStore.addRecord(TranscriptionRecord(
             rawText: raw,
             cleanedText: cleaned,
-            sttEngine: sttEngine.displayName,
+            sttEngine: sttEngine().displayName,
             llmEngine: llmEngine,
             latencyMS: latency,
             targetBundleID: targetBundleID

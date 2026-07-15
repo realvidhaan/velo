@@ -29,7 +29,7 @@ final class AppController: ObservableObject {
     /// The active STT engine, cached and rebuilt only when the user's choice (or
     /// the presence of a Groq key) changes — WhisperKit caches a loaded model, so
     /// we must not rebuild it per-session.
-    private var cachedSTT: (engine: any TranscriptionEngine, choice: SettingsStore.STTChoice, hasKey: Bool)?
+    private var cachedSTT: (engine: any TranscriptionEngine, choice: SettingsStore.STTChoice, hasKey: Bool, trimSilence: Bool)?
     private var session: (any TranscriptionSession)?
     private let injector: any TextInjector = PasteInjector()
 
@@ -418,11 +418,12 @@ final class AppController: ObservableObject {
         let choice = settings.sttChoice
         let key = KeychainStore.get(.groqAPIKey)
         let hasKey = (key?.isEmpty == false)
-        if let cached = cachedSTT, cached.choice == choice, cached.hasKey == hasKey {
+        let trim = settings.trimSilence
+        if let cached = cachedSTT, cached.choice == choice, cached.hasKey == hasKey, cached.trimSilence == trim {
             return cached.engine
         }
-        let engine = buildSTTEngine(choice: choice, key: key, hasKey: hasKey)
-        cachedSTT = (engine, choice, hasKey)
+        let engine = buildSTTEngine(choice: choice, key: key, hasKey: hasKey, trim: trim)
+        cachedSTT = (engine, choice, hasKey, trim)
         return engine
     }
 
@@ -430,19 +431,19 @@ final class AppController: ObservableObject {
     ///   is already downloaded, so we never trigger a surprise download) → Apple
     ///   SpeechAnalyzer as the always-available last resort.
     private func buildSTTEngine(
-        choice: SettingsStore.STTChoice, key: String?, hasKey: Bool
+        choice: SettingsStore.STTChoice, key: String?, hasKey: Bool, trim: Bool
     ) -> any TranscriptionEngine {
         switch choice {
         case .auto:
             var chain: [any TranscriptionEngine] = []
-            if hasKey { chain.append(GroqWhisperEngine(apiKey: key)) }
-            if WhisperKitEngine.isModelInstalled() { chain.append(WhisperKitEngine()) }
+            if hasKey { chain.append(GroqWhisperEngine(apiKey: key, trimSilence: trim)) }
+            if WhisperKitEngine.isModelInstalled() { chain.append(WhisperKitEngine(trimSilence: trim)) }
             chain.append(SpeechAnalyzerEngine())
             return chain.count == 1 ? chain[0] : AutoTranscriptionEngine(engines: chain)
         case .groqWhisper:
-            return GroqWhisperEngine(apiKey: key)
+            return GroqWhisperEngine(apiKey: key, trimSilence: trim)
         case .whisperKit:
-            return WhisperKitEngine()
+            return WhisperKitEngine(trimSilence: trim)
         case .appleSpeech:
             return SpeechAnalyzerEngine()
         }

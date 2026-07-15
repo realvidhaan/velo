@@ -18,10 +18,12 @@ public final class WhisperKitEngine: TranscriptionEngine, @unchecked Sendable {
 
     private let holder: WhisperKitHolder
     private let language: String?
+    private let trimSilence: Bool
 
-    public init(model: String = WhisperKitEngine.defaultModel, locale: Locale = .current) {
+    public init(model: String = WhisperKitEngine.defaultModel, locale: Locale = .current, trimSilence: Bool = true) {
         self.holder = WhisperKitHolder(model: model)
         self.language = locale.language.languageCode?.identifier
+        self.trimSilence = trimSilence
     }
 
     /// Downloads (if needed) and loads the model. Slow on first run — call it
@@ -38,7 +40,7 @@ public final class WhisperKitEngine: TranscriptionEngine, @unchecked Sendable {
     public func makeSession(contextualStrings: [String]) async throws -> any TranscriptionSession {
         // Bias on-device Whisper toward dictionary terms via an example-style
         // prompt (tokenized into `promptTokens` inside the holder).
-        WhisperKitSession(holder: holder, language: language, biasPrompt: BiasPrompt.build(terms: contextualStrings))
+        WhisperKitSession(holder: holder, language: language, biasPrompt: BiasPrompt.build(terms: contextualStrings), trimSilence: trimSilence)
     }
 
     /// Best-effort check for whether the model is already downloaded, so the
@@ -112,11 +114,13 @@ final class WhisperKitSession: TranscriptionSession, @unchecked Sendable {
     private let holder: WhisperKitHolder
     private let language: String?
     private let biasPrompt: String?
+    private let trimSilence: Bool
 
-    init(holder: WhisperKitHolder, language: String?, biasPrompt: String? = nil) {
+    init(holder: WhisperKitHolder, language: String?, biasPrompt: String? = nil, trimSilence: Bool = true) {
         self.holder = holder
         self.language = language
         self.biasPrompt = biasPrompt
+        self.trimSilence = trimSilence
     }
 
     func feed(_ buffer: AVAudioPCMBuffer) {
@@ -125,7 +129,8 @@ final class WhisperKitSession: TranscriptionSession, @unchecked Sendable {
 
     func finish() async throws -> String {
         guard !samples.isEmpty else { return "" }
-        return try await holder.transcribe(samples, language: language, biasPrompt: biasPrompt)
+        let pcm = trimSilence ? VoiceActivityTrimmer.trimSilence(samples) : samples
+        return try await holder.transcribe(pcm, language: language, biasPrompt: biasPrompt)
     }
 
     func cancel() async {

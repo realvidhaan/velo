@@ -15,11 +15,13 @@ public struct GroqWhisperEngine: TranscriptionEngine {
     private let apiKey: String?
     private let model: String
     private let timeout: TimeInterval
+    private let trimSilence: Bool
 
-    public init(apiKey: String?, model: String = "whisper-large-v3-turbo", timeout: TimeInterval = 15) {
+    public init(apiKey: String?, model: String = "whisper-large-v3-turbo", timeout: TimeInterval = 15, trimSilence: Bool = true) {
         self.apiKey = apiKey
         self.model = model
         self.timeout = timeout
+        self.trimSilence = trimSilence
     }
 
     /// Nothing to install — the model runs on Groq's servers.
@@ -29,7 +31,7 @@ public struct GroqWhisperEngine: TranscriptionEngine {
         guard let apiKey, !apiKey.isEmpty else {
             throw TranscriptionError.engineUnavailable("Groq API key not set")
         }
-        return GroqWhisperSession(apiKey: apiKey, model: model, promptTerms: contextualStrings, timeout: timeout)
+        return GroqWhisperSession(apiKey: apiKey, model: model, promptTerms: contextualStrings, timeout: timeout, trimSilence: trimSilence)
     }
 }
 
@@ -40,12 +42,14 @@ final class GroqWhisperSession: TranscriptionSession, @unchecked Sendable {
     private let model: String
     private let promptTerms: [String]
     private let timeout: TimeInterval
+    private let trimSilence: Bool
 
-    init(apiKey: String, model: String, promptTerms: [String], timeout: TimeInterval) {
+    init(apiKey: String, model: String, promptTerms: [String], timeout: TimeInterval, trimSilence: Bool = true) {
         self.apiKey = apiKey
         self.model = model
         self.promptTerms = promptTerms
         self.timeout = timeout
+        self.trimSilence = trimSilence
     }
 
     func feed(_ buffer: AVAudioPCMBuffer) {
@@ -54,7 +58,10 @@ final class GroqWhisperSession: TranscriptionSession, @unchecked Sendable {
 
     func finish() async throws -> String {
         guard !samples.isEmpty else { return "" }
-        let wav = WAVEncoder.encode(samples: samples, sampleRate: Int(PCMConverter.sampleRate))
+        let pcm = trimSilence
+            ? VoiceActivityTrimmer.trimSilence(samples, sampleRate: Int(PCMConverter.sampleRate))
+            : samples
+        let wav = WAVEncoder.encode(samples: pcm, sampleRate: Int(PCMConverter.sampleRate))
         // Bias Whisper toward the user's dictionary spellings via an example-style
         // prompt, budgeted to Whisper's ~224-token cap with the top terms last.
         let prompt = BiasPrompt.build(terms: promptTerms)

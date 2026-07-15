@@ -80,6 +80,9 @@ struct GeneralSettingsView: View {
                 if settings.sttChoice == .whisperKit || settings.sttChoice == .auto {
                     whisperKitModelRow
                 }
+                Toggle("Trim silence before transcription", isOn: $settings.trimSilence)
+                Text("Removes dead air at the start and end of each recording — fewer misfires, faster results.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Cleanup engine") {

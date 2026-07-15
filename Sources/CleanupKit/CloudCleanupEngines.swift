@@ -23,8 +23,9 @@ public struct GroqCleanupEngine: CleanupEngine {
     public func cleanup(_ request: CleanupRequest) async throws -> String {
         guard await isAvailable() else { throw CleanupError.unavailable }
         return try await client.complete(
-            system: CleanupPrompt.system(dictionary: request.dictionary, appHint: request.appHint),
+            system: CleanupPrompt.system(dictionary: request.dictionary, appHint: request.appHint, style: request.style),
             user: CleanupPrompt.user(request.raw),
+            examples: request.examples,
             temperature: 0,
             maxTokens: max(64, request.raw.count),
             timeout: timeout
@@ -63,8 +64,9 @@ public struct OllamaCleanupEngine: CleanupEngine {
 
     public func cleanup(_ request: CleanupRequest) async throws -> String {
         return try await client.complete(
-            system: CleanupPrompt.system(dictionary: request.dictionary, appHint: request.appHint),
+            system: CleanupPrompt.system(dictionary: request.dictionary, appHint: request.appHint, style: request.style),
             user: CleanupPrompt.user(request.raw),
+            examples: request.examples,
             temperature: 0,
             maxTokens: max(64, request.raw.count),
             timeout: timeout

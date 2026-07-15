@@ -26,6 +26,35 @@ final class DataStoreTests: XCTestCase {
         XCTAssertFalse(store.activeDictionaryTerms().contains("Xyzzy"))
     }
 
+    func testReplacementRuleCRUD() throws {
+        let store = try makeStore()
+        store.addReplacementRule(ReplacementRule(originals: ["get hub"], replacement: "GitHub"))
+        store.addReplacementRule(ReplacementRule(originals: ["voicing"], replacement: "VoiceInk", enabled: false))
+        XCTAssertEqual(store.replacementRules().count, 2)
+        XCTAssertEqual(store.activeReplacementRules().map(\.replacement), ["GitHub"])
+
+        store.deleteReplacementRule(store.replacementRules().first!)
+        XCTAssertEqual(store.replacementRules().count, 1)
+    }
+
+    func testSeedReplacementRulesFromDictionaryMigration() throws {
+        let store = try makeStore()
+        // A learned substitution (has `spoken`) and a plain spelling term (no spoken).
+        store.addDictionaryEntry(DictionaryEntry(written: "Vidhaan", spoken: "vidon"))
+        store.addDictionaryEntry(DictionaryEntry(written: "Swift"))
+
+        store.seedReplacementRulesFromDictionaryIfNeeded()
+        let rules = store.replacementRules()
+        XCTAssertEqual(rules.count, 1, "only the entry with a spoken form becomes a rule")
+        XCTAssertEqual(rules.first?.replacement, "Vidhaan")
+        XCTAssertEqual(rules.first?.originals, ["vidon"])
+        XCTAssertTrue(rules.first?.isLearned ?? false)
+
+        // Idempotent: running again doesn't duplicate.
+        store.seedReplacementRulesFromDictionaryIfNeeded()
+        XCTAssertEqual(store.replacementRules().count, 1)
+    }
+
     func testHistoryAddSearchClear() throws {
         let store = try makeStore()
         store.addRecord(TranscriptionRecord(rawText: "hello world", cleanedText: "Hello world.",

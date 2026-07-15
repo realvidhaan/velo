@@ -11,7 +11,7 @@ final class SettingsSnapshotTests: XCTestCase {
             dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("fc-settings-snaps")
         }
         let urls = try SettingsSnapshot.render(to: dir)
-        XCTAssertEqual(urls.count, 3)
+        XCTAssertEqual(urls.count, 4)
         for url in urls {
             let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
             XCTAssertGreaterThan(size ?? 0, 500)

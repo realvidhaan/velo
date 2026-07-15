@@ -85,6 +85,45 @@ final class CleanupPromptTests: XCTestCase {
         let s = CleanupPrompt.system(dictionary: [], appHint: nil).lowercased()
         XCTAssertTrue(s.contains("do not summarize") || s.contains("not summarize"))
     }
+
+    func testSystemIncludesStructuredFormattingRules() {
+        let s = CleanupPrompt.system(dictionary: [], appHint: nil).lowercased()
+        XCTAssertTrue(s.contains("numbered list"))
+        XCTAssertTrue(s.contains("bulleted list"))
+        XCTAssertTrue(s.contains("comma-separated list"))
+        XCTAssertTrue(s.contains("paragraph"))
+        // Guardrail: never fabricate list items.
+        XCTAssertTrue(s.contains("never invent"))
+    }
+
+    func testEmailPersonalityAddsEmailStructure() {
+        let style = CleanupStyle(tone: .formal, structure: .email, keepTrailingPunctuation: true, hint: "email prose")
+        let s = CleanupPrompt.system(dictionary: [], appHint: nil, style: style).lowercased()
+        XCTAssertTrue(s.contains("email"))
+        XCTAssertTrue(s.contains("greeting"))
+        XCTAssertTrue(s.contains("sign-off"))
+    }
+
+    func testCasualPersonalityDropsTrailingPeriod() {
+        let style = CleanupStyle(tone: .casual, structure: .prose, keepTrailingPunctuation: false, hint: "")
+        let s = CleanupPrompt.system(dictionary: [], appHint: nil, style: style).lowercased()
+        XCTAssertTrue(s.contains("do not end the message with a period"))
+    }
+
+    func testVerbatimPersonalityOverridesFormatting() {
+        let style = CleanupStyle(tone: .verbatim, structure: .code, keepTrailingPunctuation: false, hint: "")
+        let s = CleanupPrompt.system(dictionary: [], appHint: nil, style: style).lowercased()
+        XCTAssertTrue(s.contains("verbatim"))
+        XCTAssertTrue(s.contains("ignore the formatting rules"))
+    }
+
+    func testDefaultExamplesDemonstrateStructure() {
+        let examples = CleanupPrompt.defaultExamples
+        XCTAssertFalse(examples.isEmpty)
+        // One teaches numbered lists, one teaches comma lists.
+        XCTAssertTrue(examples.contains { $0.output.contains("1.") && $0.output.contains("2.") })
+        XCTAssertTrue(examples.contains { $0.output.contains(", ") && $0.output.contains(", and ") })
+    }
 }
 
 final class AppProfilesTests: XCTestCase {
@@ -96,6 +135,23 @@ final class AppProfilesTests: XCTestCase {
     func testUnknownAppIsNeutral() {
         XCTAssertNil(AppProfileDefaults.hint(forBundleID: "com.example.unknown"))
         XCTAssertNil(AppProfileDefaults.hint(forBundleID: nil))
+    }
+
+    func testBuiltInPersonalities() {
+        let mail = AppProfileDefaults.personality(forBundleID: "com.apple.mail")
+        XCTAssertEqual(mail?.style.structure, .email)
+        XCTAssertEqual(mail?.style.tone, .formal)
+        XCTAssertFalse(mail?.examples.isEmpty ?? true, "Mail ships an email few-shot example")
+
+        let messages = AppProfileDefaults.personality(forBundleID: "com.apple.MobileSMS")
+        XCTAssertEqual(messages?.style.tone, .casual)
+        XCTAssertEqual(messages?.style.keepTrailingPunctuation, false)
+
+        let vscode = AppProfileDefaults.personality(forBundleID: "com.microsoft.VSCode")
+        XCTAssertEqual(vscode?.style.tone, .verbatim)
+        XCTAssertEqual(vscode?.style.structure, .code)
+
+        XCTAssertNil(AppProfileDefaults.personality(forBundleID: "com.example.unknown"))
     }
 }
 
@@ -173,5 +229,39 @@ final class LiveGroqCleanupTests: XCTestCase {
         let email = await pipeline.cleanup(CleanupRequest(raw: raw, appHint: emailHint))
         print("GROQ email-formatted: \(email)")
         XCTAssertFalse(email.isEmpty)
+    }
+
+    /// Structured formatting: enumerations become numbered lists, inline items
+    /// become comma lists, and the email personality produces email shape.
+    func testGroqStructuredFormatting() async throws {
+        let key = ProcessInfo.processInfo.environment["GROQ_API_KEY"] ?? ""
+        try XCTSkipUnless(!key.isEmpty, "Set GROQ_API_KEY to run the live Groq test")
+
+        let engine = GroqCleanupEngine(apiKey: key, timeout: 10)
+        let pipeline = CleanupPipeline(engines: [engine])
+        let examples = CleanupPrompt.defaultExamples
+
+        // (a) Enumeration → numbered list.
+        let listRaw = "okay so first we need to buy milk second call mom and then third finish the report"
+        let list = await pipeline.cleanup(CleanupRequest(raw: listRaw, examples: examples))
+        print("GROQ list: \(list)")
+        XCTAssertTrue(list.contains("1.") && list.contains("2.") && list.contains("3."),
+                      "expected a numbered list, got: \(list)")
+
+        // (b) Inline items → comma list with Oxford comma.
+        let commaRaw = "we need to grab eggs milk bread and butter"
+        let comma = await pipeline.cleanup(CleanupRequest(raw: commaRaw, examples: examples))
+        print("GROQ comma list: \(comma)")
+        XCTAssertTrue(comma.contains("eggs, milk, bread"), "expected a comma list, got: \(comma)")
+
+        // (c) Email personality → greeting/body structure (multi-line).
+        let mail = AppProfileDefaults.personality(forBundleID: "com.apple.mail")
+        let emailRaw = "hey sarah just following up on the proposal can we meet thursday thanks alex"
+        let email = await pipeline.cleanup(CleanupRequest(
+            raw: emailRaw, style: mail?.style, examples: examples + (mail?.examples ?? [])
+        ))
+        print("GROQ email: \(email)")
+        XCTAssertFalse(email.isEmpty)
+        XCTAssertTrue(email.contains("\n"), "expected multi-line email structure, got: \(email)")
     }
 }

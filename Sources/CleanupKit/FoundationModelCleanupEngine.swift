@@ -15,9 +15,18 @@ public struct FoundationModelCleanupEngine: CleanupEngine {
 
     public func cleanup(_ request: CleanupRequest) async throws -> String {
         guard await isAvailable() else { throw CleanupError.unavailable }
-        let session = LanguageModelSession(
-            instructions: CleanupPrompt.system(dictionary: request.dictionary, appHint: request.appHint)
+        var instructions = CleanupPrompt.system(
+            dictionary: request.dictionary, appHint: request.appHint, style: request.style
         )
+        // Apple's session API is instructions + a single prompt, so fold the
+        // few-shot demonstrations into the instructions as text.
+        if !request.examples.isEmpty {
+            instructions += "\n\nExamples of correct output:"
+            for example in request.examples {
+                instructions += "\nInput: \(example.input)\nOutput: \(example.output)"
+            }
+        }
+        let session = LanguageModelSession(instructions: instructions)
         let response = try await session.respond(
             to: CleanupPrompt.user(request.raw),
             options: GenerationOptions(temperature: 0)

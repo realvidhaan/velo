@@ -19,6 +19,7 @@ public struct OpenAICompatibleClient: Sendable {
     public func complete(
         system: String,
         user: String,
+        examples: [CleanupExample] = [],
         temperature: Double = 0,
         maxTokens: Int? = nil,
         timeout: TimeInterval = 2.5
@@ -31,13 +32,18 @@ public struct OpenAICompatibleClient: Sendable {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         }
 
+        // system → [few-shot user/assistant pairs] → the real transcript.
+        var messages: [[String: String]] = [["role": "system", "content": system]]
+        for example in examples {
+            messages.append(["role": "user", "content": CleanupPrompt.user(example.input)])
+            messages.append(["role": "assistant", "content": example.output])
+        }
+        messages.append(["role": "user", "content": user])
+
         var body: [String: Any] = [
             "model": model,
             "temperature": temperature,
-            "messages": [
-                ["role": "system", "content": system],
-                ["role": "user", "content": user],
-            ],
+            "messages": messages,
         ]
         if let maxTokens { body["max_tokens"] = maxTokens }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

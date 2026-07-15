@@ -14,6 +14,7 @@ public final class DataStore {
         let schema = Schema([
             TranscriptionRecord.self,
             DictionaryEntry.self,
+            ReplacementRule.self,
             AppProfileRecord.self,
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
@@ -72,6 +73,49 @@ public final class DataStore {
     public func deleteDictionaryEntry(_ entry: DictionaryEntry) {
         context.delete(entry)
         try? context.save()
+    }
+
+    // MARK: Replacement rules
+
+    public func replacementRules() -> [ReplacementRule] {
+        let descriptor = FetchDescriptor<ReplacementRule>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    /// Enabled rules, applied to the raw transcript before cleanup.
+    public func activeReplacementRules() -> [ReplacementRule] {
+        replacementRules().filter(\.enabled)
+    }
+
+    public func addReplacementRule(_ rule: ReplacementRule) {
+        context.insert(rule)
+        try? context.save()
+    }
+
+    public func deleteReplacementRule(_ rule: ReplacementRule) {
+        context.delete(rule)
+        try? context.save()
+    }
+
+    /// One-time migration that closes the "learned but never applied" gap: every
+    /// dictionary entry that carries a `spoken` form (i.e. a real substitution)
+    /// becomes an active replacement rule, so accepted corrections finally take
+    /// effect. Idempotent — skips any (originals, replacement) that already exists.
+    public func seedReplacementRulesFromDictionaryIfNeeded() {
+        let existing = replacementRules()
+        func ruleExists(spoken: String, written: String) -> Bool {
+            existing.contains { $0.replacement == written && $0.originals.contains(spoken) }
+        }
+        var inserted = false
+        for entry in dictionaryEntries() {
+            guard let spoken = entry.spoken, !spoken.isEmpty,
+                  !ruleExists(spoken: spoken, written: entry.written) else { continue }
+            context.insert(ReplacementRule(originals: [spoken], replacement: entry.written, isLearned: true))
+            inserted = true
+        }
+        if inserted { try? context.save() }
     }
 
     // MARK: App profiles

@@ -12,6 +12,8 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             DictionarySettingsView(dataStore: controller.dataStore)
                 .tabItem { Label("Dictionary", systemImage: "character.book.closed") }
+            ReplacementRulesSettingsView(dataStore: controller.dataStore)
+                .tabItem { Label("Your Voice", systemImage: "wand.and.stars") }
             AppProfilesSettingsView(dataStore: controller.dataStore)
                 .tabItem { Label("App Formatting", systemImage: "app.badge") }
             HistorySettingsView(dataStore: controller.dataStore)
@@ -78,6 +80,9 @@ struct GeneralSettingsView: View {
                 if settings.sttChoice == .whisperKit || settings.sttChoice == .auto {
                     whisperKitModelRow
                 }
+                Toggle("Trim silence before transcription", isOn: $settings.trimSilence)
+                Text("Removes dead air at the start and end of each recording — fewer misfires, faster results.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Cleanup engine") {

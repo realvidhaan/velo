@@ -16,6 +16,7 @@ final class SettingsStore: ObservableObject {
         static let ollamaModel = "cleanup.ollamaModel"
         static let groqModel = "cleanup.groqModel"
         static let sttEngine = "stt.engine"
+        static let trimSilence = "stt.trimSilence"
         static let learnFromCorrections = "learning.enabled"
         static let hasCompletedOnboarding = "onboarding.completed"
         static let commandModifier = "command.modifier"
@@ -70,6 +71,9 @@ final class SettingsStore: ObservableObject {
     @Published var sttChoice: STTChoice {
         didSet { defaults.set(sttChoice.rawValue, forKey: Keys.sttEngine) }
     }
+    @Published var trimSilence: Bool {
+        didSet { defaults.set(trimSilence, forKey: Keys.trimSilence) }
+    }
     @Published var ollamaModel: String {
         didSet { defaults.set(ollamaModel, forKey: Keys.ollamaModel) }
     }
@@ -100,6 +104,7 @@ final class SettingsStore: ObservableObject {
         cleanupChoice = CleanupChoice(rawValue: choiceRaw) ?? .auto
         let sttRaw = defaults.string(forKey: Keys.sttEngine) ?? STTChoice.auto.rawValue
         sttChoice = STTChoice(rawValue: sttRaw) ?? .auto
+        trimSilence = defaults.object(forKey: Keys.trimSilence) as? Bool ?? true
         ollamaModel = defaults.string(forKey: Keys.ollamaModel) ?? "llama3.2"
         groqModel = defaults.string(forKey: Keys.groqModel) ?? "llama-3.1-8b-instant"
         groqAPIKey = KeychainStore.get(.groqAPIKey) ?? ""

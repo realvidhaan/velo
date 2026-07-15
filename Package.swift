@@ -77,7 +77,7 @@ let package = Package(
         // library so they render headlessly in tests.
         .target(
             name: "SettingsUI",
-            dependencies: ["PersistenceKit"]
+            dependencies: ["PersistenceKit", "LearningKit"]
         ),
 
         // First-run onboarding walkthrough (presentational; snapshot-testable).

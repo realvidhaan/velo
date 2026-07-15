@@ -29,7 +29,7 @@ final class AppController: ObservableObject {
     /// The active STT engine, cached and rebuilt only when the user's choice (or
     /// the presence of a Groq key) changes — WhisperKit caches a loaded model, so
     /// we must not rebuild it per-session.
-    private var cachedSTT: (engine: any TranscriptionEngine, choice: SettingsStore.STTChoice, hasKey: Bool)?
+    private var cachedSTT: (engine: any TranscriptionEngine, choice: SettingsStore.STTChoice, hasKey: Bool, trimSilence: Bool)?
     private var session: (any TranscriptionSession)?
     private let injector: any TextInjector = PasteInjector()
 
@@ -97,6 +97,9 @@ final class AppController: ObservableObject {
         dataStore.seedAppProfilesIfNeeded(
             AppProfileDefaults.all.map { ($0.bundleID, $0.displayName, $0.formattingHint) }
         )
+        // Promote already-learned dictionary substitutions into active
+        // replacement rules so accepted corrections finally take effect.
+        dataStore.seedReplacementRulesFromDictionaryIfNeeded()
     }
 
     /// Re-applies the configured hotkeys (called when the user changes them).
@@ -339,11 +342,27 @@ final class AppController: ObservableObject {
                 return
             }
 
+            // Apply deterministic replacement rules first (STT → rules → cleanup),
+            // so the LLM sees already-corrected names/terms.
+            let rules = dataStore.activeReplacementRules().map {
+                Replacement(originals: $0.originals, replacement: $0.replacement)
+            }
+            let corrected = ReplacementRules.apply(transcript, rules: rules)
             // cleaning: run the LLM cleanup pass (or fast/deterministic path).
-            let hint = dataStore.hint(forBundleID: targetBundleID)
-                ?? AppProfileDefaults.hint(forBundleID: targetBundleID)
+            // Resolve the target app's built-in personality (tone + structure +
+            // examples); let a user-edited hint override the personality's text.
+            let personality = AppProfileDefaults.personality(forBundleID: targetBundleID)
+            let userHint = dataStore.hint(forBundleID: targetBundleID)
+            let style: CleanupStyle? = personality.map { p in
+                var s = p.style
+                if let userHint, !userHint.isEmpty { s.hint = userHint }
+                return s
+            }
+            let examples = CleanupPrompt.defaultExamples + (personality?.examples ?? [])
             let terms = dataStore.activeDictionaryTerms()
-            let request = CleanupRequest(raw: transcript, dictionary: terms, appHint: hint)
+            let request = CleanupRequest(
+                raw: corrected, dictionary: terms, appHint: userHint, style: style, examples: examples
+            )
             let (cleaned, llmName) = await runCleanup(request)
             // Bail if cancelled/superseded during the (possibly slow) cleanup pass.
             guard generation == sessionGeneration else { return }
@@ -399,11 +418,12 @@ final class AppController: ObservableObject {
         let choice = settings.sttChoice
         let key = KeychainStore.get(.groqAPIKey)
         let hasKey = (key?.isEmpty == false)
-        if let cached = cachedSTT, cached.choice == choice, cached.hasKey == hasKey {
+        let trim = settings.trimSilence
+        if let cached = cachedSTT, cached.choice == choice, cached.hasKey == hasKey, cached.trimSilence == trim {
             return cached.engine
         }
-        let engine = buildSTTEngine(choice: choice, key: key, hasKey: hasKey)
-        cachedSTT = (engine, choice, hasKey)
+        let engine = buildSTTEngine(choice: choice, key: key, hasKey: hasKey, trim: trim)
+        cachedSTT = (engine, choice, hasKey, trim)
         return engine
     }
 
@@ -411,19 +431,19 @@ final class AppController: ObservableObject {
     ///   is already downloaded, so we never trigger a surprise download) → Apple
     ///   SpeechAnalyzer as the always-available last resort.
     private func buildSTTEngine(
-        choice: SettingsStore.STTChoice, key: String?, hasKey: Bool
+        choice: SettingsStore.STTChoice, key: String?, hasKey: Bool, trim: Bool
     ) -> any TranscriptionEngine {
         switch choice {
         case .auto:
             var chain: [any TranscriptionEngine] = []
-            if hasKey { chain.append(GroqWhisperEngine(apiKey: key)) }
-            if WhisperKitEngine.isModelInstalled() { chain.append(WhisperKitEngine()) }
+            if hasKey { chain.append(GroqWhisperEngine(apiKey: key, trimSilence: trim)) }
+            if WhisperKitEngine.isModelInstalled() { chain.append(WhisperKitEngine(trimSilence: trim)) }
             chain.append(SpeechAnalyzerEngine())
             return chain.count == 1 ? chain[0] : AutoTranscriptionEngine(engines: chain)
         case .groqWhisper:
-            return GroqWhisperEngine(apiKey: key)
+            return GroqWhisperEngine(apiKey: key, trimSilence: trim)
         case .whisperKit:
-            return WhisperKitEngine()
+            return WhisperKitEngine(trimSilence: trim)
         case .appleSpeech:
             return SpeechAnalyzerEngine()
         }
@@ -541,6 +561,11 @@ final class AppController: ObservableObject {
     func acceptSuggestion() {
         guard let suggestion = pendingSuggestion else { return }
         dataStore.addDictionaryEntry(DictionaryEntry(written: suggestion.to, spoken: suggestion.from))
+        // Also add a replacement rule so the fix applies deterministically to the
+        // next transcript, not just as a spelling hint.
+        dataStore.addReplacementRule(
+            ReplacementRule(originals: [suggestion.from], replacement: suggestion.to, isLearned: true)
+        )
         corrections.clear(suggestion)
         pendingSuggestion = nil
     }

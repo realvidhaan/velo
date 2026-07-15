@@ -23,11 +23,13 @@ public enum SettingsSnapshot {
         store.addRecord(TranscriptionRecord(rawText: "lets meet at three",
                                             cleanedText: "Let's meet at three.",
                                             sttEngine: "SpeechAnalyzer", llmEngine: "Apple FM", latencyMS: 640))
+        store.addReplacementRule(ReplacementRule(originals: ["get hub"], replacement: "GitHub", isLearned: true))
 
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var written: [URL] = []
         let views: [(String, AnyView)] = [
             ("settings-dictionary", AnyView(DictionarySettingsView(dataStore: store))),
+            ("settings-your-voice", AnyView(ReplacementRulesSettingsView(dataStore: store))),
             ("settings-app-profiles", AnyView(AppProfilesSettingsView(dataStore: store))),
             ("settings-history", AnyView(HistorySettingsView(dataStore: store))),
         ]

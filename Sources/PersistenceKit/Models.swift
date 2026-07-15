@@ -49,6 +49,34 @@ public final class DictionaryEntry {
     }
 }
 
+/// A deterministic find/replace rule applied to the raw transcript *after* STT
+/// and *before* the LLM cleanup pass (the order every competitor converges on).
+/// `originals` are the spoken/misheard variants; `replacement` is the single
+/// canonical output. Case-insensitive, word-boundary matching. `isLearned`
+/// distinguishes rules mined from the user's corrections from manual ones.
+@Model
+public final class ReplacementRule {
+    public var originals: [String]
+    public var replacement: String
+    public var enabled: Bool
+    public var isLearned: Bool
+    public var createdAt: Date
+
+    public init(
+        originals: [String],
+        replacement: String,
+        enabled: Bool = true,
+        isLearned: Bool = false,
+        createdAt: Date = Date()
+    ) {
+        self.originals = originals
+        self.replacement = replacement
+        self.enabled = enabled
+        self.isLearned = isLearned
+        self.createdAt = createdAt
+    }
+}
+
 /// A per-app formatting profile (persisted; seeded from `AppProfileDefaults`).
 @Model
 public final class AppProfileRecord {

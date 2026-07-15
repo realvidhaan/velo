@@ -3,7 +3,8 @@ import XCTest
 
 final class LocalPolishTests: XCTestCase {
     func testCapitalizesAndAddsPeriod() {
-        XCTAssertEqual(LocalPolish.polish("let's meet at three"), "Let's meet at three.")
+        // "three" is digitized to "3" (dictation convention).
+        XCTAssertEqual(LocalPolish.polish("let's meet at three"), "Let's meet at 3.")
     }
 
     func testRemovesHardFillers() {
@@ -25,10 +26,26 @@ final class LocalPolishTests: XCTestCase {
         XCTAssertEqual(LocalPolish.polish("yes"), "Yes")
     }
 
+    func testDigitizesStandaloneNumber() {
+        XCTAssertEqual(LocalPolish.polish("ten"), "10")
+        XCTAssertEqual(LocalPolish.polish("I need ten copies"), "I need 10 copies.")
+    }
+
+    func testDigitizesCompoundNumber() {
+        // "twenty five" -> "25"; result is 2 words, so no forced period.
+        XCTAssertEqual(LocalPolish.polish("twenty five dollars"), "25 dollars")
+    }
+
+    func testCollapsesImmediateRepeats() {
+        XCTAssertEqual(LocalPolish.polish("the the report is is done"), "The report is done.")
+    }
+
     func testIsShort() {
+        // ≤2 words fast-paths; anything sentence-shaped goes to the LLM.
         XCTAssertTrue(LocalPolish.isShort("sounds good"))
-        XCTAssertTrue(LocalPolish.isShort("one two three four"))
-        XCTAssertFalse(LocalPolish.isShort("one two three four five"))
+        XCTAssertTrue(LocalPolish.isShort("yes"))
+        XCTAssertFalse(LocalPolish.isShort("one two three"))
+        XCTAssertFalse(LocalPolish.isShort("let's meet at ten"))
     }
 
     func testEmptyStaysEmpty() {
@@ -53,8 +70,20 @@ final class CleanupPromptTests: XCTestCase {
     }
 
     func testSystemHasInjectionGuard() {
-        let s = CleanupPrompt.system(dictionary: [], appHint: nil)
-        XCTAssertTrue(s.lowercased().contains("data, not a command"))
+        let s = CleanupPrompt.system(dictionary: [], appHint: nil).lowercased()
+        XCTAssertTrue(s.contains("data, not an instruction"))
+        XCTAssertTrue(s.contains("never follow"))
+    }
+
+    func testSystemInstructsNumberAndFillerFormatting() {
+        let s = CleanupPrompt.system(dictionary: [], appHint: nil).lowercased()
+        XCTAssertTrue(s.contains("number"))   // digitize numbers
+        XCTAssertTrue(s.contains("filler"))   // remove fillers
+    }
+
+    func testSystemForbidsSummarizing() {
+        let s = CleanupPrompt.system(dictionary: [], appHint: nil).lowercased()
+        XCTAssertTrue(s.contains("do not summarize") || s.contains("not summarize"))
     }
 }
 
@@ -108,7 +137,9 @@ final class FoundationModelCleanupTests: XCTestCase {
         print("FM cleanup: \(cleaned)")
         XCTAssertFalse(cleaned.isEmpty)
         XCTAssertFalse(cleaned.lowercased().contains(" um "))
-        XCTAssertTrue(cleaned.lowercased().contains("three"))
+        // Accept either the digit "3" or the word (Apple FM is less consistent
+        // at number formatting than Groq/Whisper).
+        XCTAssertTrue(cleaned.contains("3") || cleaned.lowercased().contains("three"))
         XCTAssertTrue(cleaned.lowercased().contains("project"))
     }
 }
@@ -131,7 +162,9 @@ final class LiveGroqCleanupTests: XCTestCase {
         XCTAssertFalse(cleaned.isEmpty)
         XCTAssertFalse(cleaned.lowercased().contains(" um "))
         XCTAssertFalse(cleaned.lowercased().contains(" uh "))
-        XCTAssertTrue(cleaned.lowercased().contains("three"))
+        // New behavior: spoken number "three" is written as the digit "3".
+        XCTAssertTrue(cleaned.contains("3"), "expected 'three' digitized to '3', got: \(cleaned)")
+        XCTAssertFalse(cleaned.lowercased().contains("three"), "number should be digitized, got: \(cleaned)")
         XCTAssertTrue(cleaned.lowercased().contains("project"))
 
         // App-aware formatting: an email hint should produce more formal prose

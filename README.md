@@ -32,13 +32,25 @@ disk if you enable history audio retention (off by default).
 ## Build & run
 
 ```sh
+make setup  # ONE TIME: create a stable local signing identity (see below)
 make test   # run the unit tests
 make run    # build, assemble FlowClone.app, and launch it
 ```
 
-`make run` produces `build/FlowClone.app`. Because the app is signed ad-hoc (or
-with a local development certificate), macOS Gatekeeper may warn on first launch
-— right-click the app and choose **Open**, or run
+Run `make setup` **once**, before your first `make run`. You do **not** need to
+re-run it on later builds.
+
+It creates a persistent self-signed **“FlowClone Local Dev”** code-signing
+certificate in your login keychain (no Apple Developer account required). This
+keeps the app's signing identity constant across rebuilds, so the macOS
+permissions you grant it (Accessibility, Input Monitoring, Microphone) survive
+every subsequent `make run`. Without it, the app would be signed *ad-hoc* — a
+signature that changes on every build, causing macOS to treat each rebuild as a
+new app and wipe those grants. If you already have an **Apple Development**
+identity, `make setup` is a no-op and that identity is used automatically.
+
+`make run` produces `build/FlowClone.app`. On first launch macOS Gatekeeper may
+warn (the cert is self-signed) — right-click the app and choose **Open**, or run
 `xattr -dr com.apple.quarantine build/FlowClone.app`.
 
 FlowClone is a menu-bar-only app (no Dock icon). Look for the microphone icon in

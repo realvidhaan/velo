@@ -96,6 +96,10 @@ let package = Package(
             dependencies: ["HotkeyService"]
         ),
         .testTarget(
+            name: "AudioServiceTests",
+            dependencies: ["AudioService"]
+        ),
+        .testTarget(
             name: "IndicatorUITests",
             dependencies: ["IndicatorUI"]
         ),

@@ -1,4 +1,10 @@
-.PHONY: build app run test clean
+.PHONY: setup build app run test clean
+
+# One-time: create a persistent local code-signing identity so the app keeps
+# its Accessibility/Input Monitoring/Microphone permissions across rebuilds.
+# Run this once before your first `make run`; you don't need it again.
+setup:
+	./Scripts/setup-signing.sh
 
 # Compile the package (fast check that everything builds).
 build:

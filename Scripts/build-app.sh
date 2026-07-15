@@ -14,10 +14,12 @@
 # "resource fork, Finder information, or similar detritus not allowed".
 # Extended attributes added AFTER signing do not invalidate the signature.
 #
-# Signing: prefers a stable "Apple Development" identity if one exists in the
-# keychain (this keeps TCC Accessibility/Input Monitoring grants stable across
-# rebuilds). Falls back to ad-hoc signing (grants reset each build — a dev-loop
-# annoyance, documented in the README).
+# Signing: picks a stable identity so TCC Accessibility/Input Monitoring/
+# Microphone grants survive rebuilds. Preference order:
+#   1. an "Apple Development" identity (if you have an Apple Developer account)
+#   2. the "FlowClone Local Dev" self-signed cert from Scripts/setup-signing.sh
+#   3. ad-hoc (last resort — content-hashed, so grants RESET every build)
+# Run `make setup` once to create #2 and avoid the ad-hoc fallback entirely.
 
 set -euo pipefail
 
@@ -60,18 +62,30 @@ done
 
 echo "==> Signing"
 xattr -cr "$APP" 2>/dev/null || true
-# `|| true`: grep exits 1 when no dev cert exists (the common case), which
-# would otherwise trip `set -o pipefail` + `set -e` and abort the build.
-IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | awk -F'"' '{print $2}' || true)"
+
+# Look up a stable signing identity, preferring a real Apple Development cert,
+# then the local self-signed one, then nothing. `|| true` keeps `set -e`/pipefail
+# from aborting when grep finds no match (the common case for each lookup).
+find_identity() {
+    security find-identity -v -p codesigning 2>/dev/null \
+        | grep "$1" | head -1 | awk -F'"' '{print $2}' || true
+}
+IDENTITY="$(find_identity "Apple Development")"
+[[ -z "$IDENTITY" ]] && IDENTITY="$(find_identity "FlowClone Local Dev")"
+
 if [[ -n "$IDENTITY" ]]; then
-    echo "    using identity: $IDENTITY (stable TCC grants)"
+    echo "    using identity: $IDENTITY (stable — TCC grants persist)"
     codesign --force --options runtime \
         --identifier "$BUNDLE_ID" \
         --entitlements "$ENTITLEMENTS" \
         --sign "$IDENTITY" "$APP"
 else
-    echo "    no Apple Development identity found; ad-hoc signing"
-    echo "    (Accessibility/Input Monitoring grants will reset each rebuild)"
+    echo "" >&2
+    echo "!!  WARNING: no stable signing identity found — falling back to AD-HOC." >&2
+    echo "!!  Ad-hoc signatures change every build, so macOS will RESET FlowClone's" >&2
+    echo "!!  Accessibility / Input Monitoring / Microphone permissions on each" >&2
+    echo "!!  rebuild. Run 'make setup' once to fix this permanently." >&2
+    echo "" >&2
     codesign --force \
         --identifier "$BUNDLE_ID" \
         --entitlements "$ENTITLEMENTS" \

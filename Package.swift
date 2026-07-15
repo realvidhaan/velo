@@ -10,6 +10,10 @@ let package = Package(
         .executable(name: "FlowClone", targets: ["FlowCloneApp"]),
         .library(name: "FlowCore", targets: ["FlowCore"]),
     ],
+    dependencies: [
+        // On-device Whisper (CoreML/ANE) for offline, private transcription.
+        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
+    ],
     targets: [
         // Pure logic core: state machine, session model, engine registry.
         // No AppKit — unit-testable via `swift test`.
@@ -34,9 +38,13 @@ let package = Package(
             name: "IndicatorUI"
         ),
 
-        // Speech-to-text engines (Apple SpeechAnalyzer; Groq Whisper later).
+        // Speech-to-text engines: Apple SpeechAnalyzer, Groq Whisper (cloud),
+        // WhisperKit (on-device).
         .target(
-            name: "TranscriptionKit"
+            name: "TranscriptionKit",
+            dependencies: [
+                .product(name: "WhisperKit", package: "WhisperKit"),
+            ]
         ),
 
         // Text injection into the focused app (paste primary, keystroke fallback).

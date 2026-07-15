@@ -15,6 +15,7 @@ final class SettingsStore: ObservableObject {
         static let cleanupEngine = "cleanup.engine"
         static let ollamaModel = "cleanup.ollamaModel"
         static let groqModel = "cleanup.groqModel"
+        static let sttEngine = "stt.engine"
         static let learnFromCorrections = "learning.enabled"
         static let hasCompletedOnboarding = "onboarding.completed"
         static let commandModifier = "command.modifier"
@@ -44,11 +45,30 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    enum STTChoice: String, CaseIterable, Identifiable {
+        case auto          // Groq if key set → WhisperKit if installed → Apple
+        case groqWhisper
+        case whisperKit
+        case appleSpeech
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .auto: return "Automatic (Groq → on-device Whisper → Apple)"
+            case .groqWhisper: return "Groq Whisper (cloud)"
+            case .whisperKit: return "WhisperKit (on-device, ~600 MB)"
+            case .appleSpeech: return "Apple Speech (on-device, built-in)"
+            }
+        }
+    }
+
     @Published var hotkeyModifier: Hotkey.Modifier {
         didSet { defaults.set(hotkeyModifier.rawValue, forKey: Keys.hotkeyModifier) }
     }
     @Published var cleanupChoice: CleanupChoice {
         didSet { defaults.set(cleanupChoice.rawValue, forKey: Keys.cleanupEngine) }
+    }
+    @Published var sttChoice: STTChoice {
+        didSet { defaults.set(sttChoice.rawValue, forKey: Keys.sttEngine) }
     }
     @Published var ollamaModel: String {
         didSet { defaults.set(ollamaModel, forKey: Keys.ollamaModel) }
@@ -78,6 +98,8 @@ final class SettingsStore: ObservableObject {
         hotkeyModifier = Hotkey.Modifier(rawValue: modRaw) ?? .fn
         let choiceRaw = defaults.string(forKey: Keys.cleanupEngine) ?? CleanupChoice.auto.rawValue
         cleanupChoice = CleanupChoice(rawValue: choiceRaw) ?? .auto
+        let sttRaw = defaults.string(forKey: Keys.sttEngine) ?? STTChoice.auto.rawValue
+        sttChoice = STTChoice(rawValue: sttRaw) ?? .auto
         ollamaModel = defaults.string(forKey: Keys.ollamaModel) ?? "llama3.2"
         groqModel = defaults.string(forKey: Keys.groqModel) ?? "llama-3.1-8b-instant"
         groqAPIKey = KeychainStore.get(.groqAPIKey) ?? ""

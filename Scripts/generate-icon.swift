@@ -58,7 +58,6 @@ func renderPNG(px: Int) -> Data {
 }
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Resources/Velo.iconset"
-try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
 let variants: [(px: Int, name: String)] = [
     (16, "icon_16x16"), (32, "icon_16x16@2x"),
     (32, "icon_32x32"), (64, "icon_32x32@2x"),
@@ -66,7 +65,13 @@ let variants: [(px: Int, name: String)] = [
     (256, "icon_256x256"), (512, "icon_256x256@2x"),
     (512, "icon_512x512"), (1024, "icon_512x512@2x"),
 ]
-for v in variants {
-    try! renderPNG(px: v.px).write(to: URL(fileURLWithPath: "\(outDir)/\(v.name).png"))
-    print("wrote \(v.name).png (\(v.px)px)")
+do {
+    try FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
+    for v in variants {
+        try renderPNG(px: v.px).write(to: URL(fileURLWithPath: "\(outDir)/\(v.name).png"))
+        print("wrote \(v.name).png (\(v.px)px)")
+    }
+} catch {
+    FileHandle.standardError.write(Data("generate-icon: failed writing to \(outDir): \(error.localizedDescription)\n".utf8))
+    exit(1)
 }

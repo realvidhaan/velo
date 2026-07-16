@@ -83,6 +83,9 @@ struct GeneralSettingsView: View {
                 Toggle("Trim silence before transcription", isOn: $settings.trimSilence)
                 Text("Removes dead air at the start and end of each recording — fewer misfires, faster results.")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("Whisper & noise reduction", isOn: $settings.voiceProcessing)
+                Text("Boosts quiet or whispered speech and suppresses background noise. Hold the mic close when whispering — a loud nearby talker may still be picked up. Takes effect on your next dictation.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Cleanup engine") {

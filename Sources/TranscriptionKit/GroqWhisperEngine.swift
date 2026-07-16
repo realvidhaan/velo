@@ -58,9 +58,12 @@ final class GroqWhisperSession: TranscriptionSession, @unchecked Sendable {
 
     func finish() async throws -> String {
         guard !samples.isEmpty else { return "" }
+        // Boost a quiet/whispered utterance to a normal level *before* trimming,
+        // so the energy gate sees loud speech and the 16-bit WAV keeps its detail.
+        let boosted = GainNormalizer.normalize(samples)
         let pcm = trimSilence
-            ? VoiceActivityTrimmer.trimSilence(samples, sampleRate: Int(PCMConverter.sampleRate))
-            : samples
+            ? VoiceActivityTrimmer.trimSilence(boosted, sampleRate: Int(PCMConverter.sampleRate))
+            : boosted
         let wav = WAVEncoder.encode(samples: pcm, sampleRate: Int(PCMConverter.sampleRate))
         // Bias Whisper toward the user's dictionary spellings via an example-style
         // prompt, budgeted to Whisper's ~224-token cap with the top terms last.

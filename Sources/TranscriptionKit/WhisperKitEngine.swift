@@ -129,7 +129,10 @@ final class WhisperKitSession: TranscriptionSession, @unchecked Sendable {
 
     func finish() async throws -> String {
         guard !samples.isEmpty else { return "" }
-        let pcm = trimSilence ? VoiceActivityTrimmer.trimSilence(samples) : samples
+        // Boost a quiet/whispered utterance to a normal level *before* trimming,
+        // so the energy gate keeps soft speech and the model sees a stable level.
+        let boosted = GainNormalizer.normalize(samples)
+        let pcm = trimSilence ? VoiceActivityTrimmer.trimSilence(boosted) : boosted
         return try await holder.transcribe(pcm, language: language, biasPrompt: biasPrompt)
     }
 

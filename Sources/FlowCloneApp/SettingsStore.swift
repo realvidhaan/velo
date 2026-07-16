@@ -18,6 +18,7 @@ final class SettingsStore: ObservableObject {
         static let groqSmartModel = "cleanup.groqSmartModel"
         static let sttEngine = "stt.engine"
         static let trimSilence = "stt.trimSilence"
+        static let voiceProcessing = "stt.voiceProcessing"
         static let learnFromCorrections = "learning.enabled"
         static let hasCompletedOnboarding = "onboarding.completed"
         static let commandModifier = "command.modifier"
@@ -76,6 +77,11 @@ final class SettingsStore: ObservableObject {
     @Published var trimSilence: Bool {
         didSet { defaults.set(trimSilence, forKey: Keys.trimSilence) }
     }
+    /// Apple voice processing (AGC + noise suppression + echo cancel) on the mic.
+    /// The user-facing "Whisper & noise reduction" switch.
+    @Published var voiceProcessing: Bool {
+        didSet { defaults.set(voiceProcessing, forKey: Keys.voiceProcessing) }
+    }
     @Published var ollamaModel: String {
         didSet { defaults.set(ollamaModel, forKey: Keys.ollamaModel) }
     }
@@ -113,6 +119,7 @@ final class SettingsStore: ObservableObject {
         let sttRaw = defaults.string(forKey: Keys.sttEngine) ?? STTChoice.auto.rawValue
         sttChoice = STTChoice(rawValue: sttRaw) ?? .auto
         trimSilence = defaults.object(forKey: Keys.trimSilence) as? Bool ?? true
+        voiceProcessing = defaults.object(forKey: Keys.voiceProcessing) as? Bool ?? true
         ollamaModel = defaults.string(forKey: Keys.ollamaModel) ?? "llama3.2"
         groqModel = defaults.string(forKey: Keys.groqModel) ?? "llama-3.1-8b-instant"
         groqSmartModel = defaults.string(forKey: Keys.groqSmartModel) ?? "llama-3.3-70b-versatile"

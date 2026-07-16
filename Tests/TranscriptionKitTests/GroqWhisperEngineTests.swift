@@ -25,6 +25,30 @@ final class GroqWhisperEngineTests: XCTestCase {
         XCTAssertTrue(normalized.contains("lazy"), "got: \(transcript)")
     }
 
+    /// Whisper regression: scale the synthesized speech down to a whisper-level
+    /// peak (~0.03) — far below normal dictation — and confirm it still
+    /// transcribes. Proves `GainNormalizer` (now applied in
+    /// `GroqWhisperSession.finish()`) rescues a quiet clip that would otherwise
+    /// arrive at the model too soft and near-silent after 16-bit quantization.
+    func testTranscribesWhisperLevelAudio() async throws {
+        let key = ProcessInfo.processInfo.environment["GROQ_API_KEY"] ?? ""
+        try XCTSkipUnless(!key.isEmpty, "Set GROQ_API_KEY to run the live Groq Whisper test")
+
+        let phrase = "the quick brown fox jumps over the lazy dog"
+        let loud = try synthesize(phrase)
+        defer { try? FileManager.default.removeItem(at: loud) }
+        let quiet = try scaleAmplitude(of: loud, toPeak: 0.03)
+        defer { try? FileManager.default.removeItem(at: quiet) }
+
+        let engine = GroqWhisperEngine(apiKey: key)
+        let transcript = try await transcribeAudioFile(quiet, using: engine).lowercased()
+        print("GROQ Whisper (whisper-level) transcript: \(transcript)")
+
+        XCTAssertFalse(transcript.isEmpty, "empty transcript for whisper-level audio")
+        XCTAssertTrue(transcript.contains("fox"), "got: \(transcript)")
+        XCTAssertTrue(transcript.contains("lazy"), "got: \(transcript)")
+    }
+
     private func synthesize(_ text: String) throws -> URL {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("fc-groqstt-\(UUID().uuidString).aiff")
@@ -37,6 +61,37 @@ final class GroqWhisperEngineTests: XCTestCase {
             throw XCTSkip("`say` did not produce audio")
         }
         return url
+    }
+
+    /// Reads a file, rescales every sample so the loudest reaches `toPeak`, and
+    /// writes it back out in the same format. Used to make a genuine whisper-level
+    /// clip out of normal `say` output.
+    private func scaleAmplitude(of url: URL, toPeak: Float) throws -> URL {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let frames = AVAudioFrameCount(file.length)
+        guard frames > 0, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else {
+            throw XCTSkip("could not buffer synthesized audio")
+        }
+        try file.read(into: buffer)
+        guard let channels = buffer.floatChannelData else { throw XCTSkip("no float channel data") }
+
+        let n = Int(buffer.frameLength)
+        var peak: Float = 0
+        for c in 0..<Int(format.channelCount) {
+            for i in 0..<n { peak = max(peak, abs(channels[c][i])) }
+        }
+        guard peak > 0 else { throw XCTSkip("silent synthesized audio") }
+        let scale = toPeak / peak
+        for c in 0..<Int(format.channelCount) {
+            for i in 0..<n { channels[c][i] *= scale }
+        }
+
+        let out = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("fc-groqstt-quiet-\(UUID().uuidString).caf")
+        let outFile = try AVAudioFile(forWriting: out, settings: format.settings)
+        try outFile.write(from: buffer)
+        return out
     }
 }
 

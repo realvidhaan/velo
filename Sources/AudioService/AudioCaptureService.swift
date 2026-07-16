@@ -21,6 +21,14 @@ public final class AudioCaptureService {
     /// Optional raw-buffer sink (used by the transcription engine in M2+).
     public var onBuffer: ((AVAudioPCMBuffer) -> Void)?
 
+    /// When true, capture runs through Apple's `AUVoiceProcessingIO` unit — AGC
+    /// (boosts quiet/whispered speech), ambient-noise suppression, and echo
+    /// cancellation — instead of the raw input node. Toggleable because VP-IO is
+    /// VoIP-tuned and can occasionally pump gain or over-suppress a genuine
+    /// whisper; with it off, `GainNormalizer` downstream still handles the whisper
+    /// boost. Changing it while running takes effect on the next `start()`.
+    public var voiceProcessing = true
+
     public init() {
         NotificationCenter.default.addObserver(
             self,
@@ -44,11 +52,37 @@ public final class AudioCaptureService {
 
     public func start() throws {
         guard !running else { return }
+        configureVoiceProcessing()
         installTap()
         engine.prepare()
         try engine.start()
         running = true
         log.info("Audio engine started")
+    }
+
+    /// Toggles Apple voice processing on the input node. Must run **before**
+    /// `engine.start()` and before the tap is installed: enabling it rebuilds the
+    /// IO unit and changes the input format (which the tap re-reads afterwards).
+    /// Enabling VP on the input node instantiates the shared VP-IO unit that
+    /// couples input and output, so we reference `outputNode` to force it to
+    /// materialize. The whole thing is best-effort — `setVoiceProcessingEnabled`
+    /// can `throw`, and a failure must degrade to raw capture, never break
+    /// dictation (`GainNormalizer` downstream still boosts whispers).
+    private func configureVoiceProcessing() {
+        let input = engine.inputNode
+        do {
+            if input.isVoiceProcessingEnabled != voiceProcessing {
+                _ = engine.outputNode // materialize the coupled VP-IO output side
+                try input.setVoiceProcessingEnabled(voiceProcessing)
+            }
+            if voiceProcessing {
+                // AGC is the whisper-boost half of VP-IO; keep it explicitly on.
+                input.isVoiceProcessingAGCEnabled = true
+            }
+            log.info("Voice processing \(self.voiceProcessing ? "enabled" : "disabled")")
+        } catch {
+            log.error("Voice processing setup failed; using raw capture: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func stop() {
@@ -123,6 +157,9 @@ public final class AudioCaptureService {
         guard running else { return }
         log.info("Audio configuration changed; re-tapping input")
         engine.inputNode.removeTap(onBus: 0)
+        // A device switch or wake-time IO-unit rebuild can drop voice processing;
+        // re-assert it before re-tapping so the new format is the processed one.
+        configureVoiceProcessing()
         installTap()
         if !engine.isRunning {
             do { try engine.start() } catch {

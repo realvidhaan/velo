@@ -661,6 +661,9 @@ final class AppController: ObservableObject {
     @discardableResult
     private func startAudio() -> Bool {
         do {
+            // Applied per-start so a Settings toggle takes effect on the next
+            // dictation (VP-IO can only be reconfigured while the engine is idle).
+            audio.voiceProcessing = settings.voiceProcessing
             try audio.start()
             return true
         } catch {

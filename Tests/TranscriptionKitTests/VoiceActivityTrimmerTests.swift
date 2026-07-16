@@ -40,6 +40,28 @@ final class VoiceActivityTrimmerTests: XCTestCase {
         XCTAssertEqual(VoiceActivityTrimmer.trimSilence(samples, sampleRate: sr).count, samples.count)
     }
 
+    /// A low-amplitude tone burst (whisper stand-in) whose RMS sits above the new
+    /// 0.005 gate but well below the old 0.02 default. The old threshold would have
+    /// treated the whole clip as silence and — via the all-silence guard — returned
+    /// it untouched, so the leading/trailing dead air would ride into the model.
+    /// The whisper-safe threshold must instead *detect* the soft burst: trim the
+    /// surrounding silence while preserving the quiet speech (peak and duration).
+    func testKeepsQuietWhisperLevelSpeech() {
+        func silence(_ seconds: Double) -> [Float] { Array(repeating: 0, count: Int(Double(sr) * seconds)) }
+        // ~0.012 peak → ~0.0085 RMS: a whisper, not silence, but under 0.02.
+        let n = Int(Double(sr) * 0.6)
+        let quiet = (0..<n).map { 0.012 * sin(2 * .pi * 440 * Float($0) / Float(sr)) }
+        let samples = silence(0.5) + quiet + silence(0.5)
+
+        let trimmed = VoiceActivityTrimmer.trimSilence(samples, sampleRate: sr)
+
+        // Detected the soft speech and removed dead air (not the all-silence no-op).
+        XCTAssertLessThan(trimmed.count, samples.count)
+        // The quiet speech itself must survive — peak intact, ~0.6s retained.
+        XCTAssertEqual(trimmed.map { abs($0) }.max() ?? 0, 0.012, accuracy: 0.002)
+        XCTAssertGreaterThanOrEqual(trimmed.count, n)
+    }
+
     func testNoInternalClipping() {
         // Speech, gap, speech — the internal gap must be preserved (only ends trimmed).
         let s = signal(leadingSilence: 1.0, speech: 0.5, trailingSilence: 0.0)

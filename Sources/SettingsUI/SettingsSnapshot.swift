@@ -10,7 +10,7 @@ public enum SettingsSnapshot {
     public static func render(to dir: URL) throws -> [URL] {
         let store = try DataStore(inMemory: true)
         store.addDictionaryEntry(DictionaryEntry(written: "Vidhaan", spoken: "vidon"))
-        store.addDictionaryEntry(DictionaryEntry(written: "FlowClone"))
+        store.addDictionaryEntry(DictionaryEntry(written: "Velo"))
         store.addDictionaryEntry(DictionaryEntry(written: "Kubernetes"))
         store.seedAppProfilesIfNeeded([
             ("com.apple.mail", "Mail", "email prose with full punctuation"),

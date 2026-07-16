@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>FlowClone</string>
+    <string>Velo</string>
     <key>CFBundleDisplayName</key>
-    <string>FlowClone</string>
+    <string>Velo</string>
     <key>CFBundleIdentifier</key>
     <string>com.flowclone.app</string>
     <key>CFBundleExecutable</key>
-    <string>FlowClone</string>
+    <string>Velo</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -34,8 +34,8 @@
     <false/>
     <!-- Permission usage strings (shown in the TCC prompts). -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>FlowClone records your voice while you hold the dictation hotkey, then transcribes it locally on your Mac.</string>
+    <string>Velo records your voice while you hold the dictation hotkey, then transcribes it locally on your Mac.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>FlowClone transcribes your speech to text.</string>
+    <string>Velo transcribes your speech to text.</string>
 </dict>
 </plist>

@@ -10,9 +10,9 @@ final class DataStoreTests: XCTestCase {
     func testDictionaryAddFetchDelete() throws {
         let store = try makeStore()
         store.addDictionaryEntry(DictionaryEntry(written: "Vidhaan"))
-        store.addDictionaryEntry(DictionaryEntry(written: "FlowClone", spoken: "flow clone"))
+        store.addDictionaryEntry(DictionaryEntry(written: "Velo", spoken: "flow clone"))
         XCTAssertEqual(store.dictionaryEntries().count, 2)
-        XCTAssertEqual(Set(store.activeDictionaryTerms()), ["Vidhaan", "FlowClone"])
+        XCTAssertEqual(Set(store.activeDictionaryTerms()), ["Vidhaan", "Velo"])
 
         let first = store.dictionaryEntries().first!
         store.deleteDictionaryEntry(first)

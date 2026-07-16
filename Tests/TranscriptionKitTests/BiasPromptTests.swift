@@ -8,8 +8,8 @@ final class BiasPromptTests: XCTestCase {
     }
 
     func testRendersExampleStylePhrase() {
-        let prompt = BiasPrompt.build(terms: ["FlowClone"])
-        XCTAssertEqual(prompt, "Vocabulary: FlowClone.")
+        let prompt = BiasPrompt.build(terms: ["Velo"])
+        XCTAssertEqual(prompt, "Vocabulary: Velo.")
     }
 
     func testHighestPriorityTermIsLast() {

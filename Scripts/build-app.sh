@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Builds the FlowClone Swift package and assembles a runnable macOS .app bundle.
+# Builds the Velo Swift package and assembles a runnable macOS .app bundle.
 #
 # Usage:
 #   Scripts/build-app.sh [debug|release]
 #
-# Output: build/FlowClone.app
+# Output: build/Velo.app
 #
 # The bundle is assembled and signed in a temp dir OUTSIDE any iCloud-synced
 # folder, then copied into build/. This avoids a race where the iCloud
@@ -26,15 +26,15 @@ set -euo pipefail
 CONFIG="${1:-debug}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build"
-BIN_NAME="FlowClone"
+BIN_NAME="Velo"
 BUNDLE_ID="com.flowclone.app"
-ENTITLEMENTS="$ROOT/Resources/FlowClone.entitlements"
+ENTITLEMENTS="$ROOT/Resources/Velo.entitlements"
 
 echo "==> Building ($CONFIG)"
 cd "$ROOT"
-swift build -c "$CONFIG" --product FlowClone
+swift build -c "$CONFIG" --product Velo
 
-BIN_PATH="$(swift build -c "$CONFIG" --product FlowClone --show-bin-path)/$BIN_NAME"
+BIN_PATH="$(swift build -c "$CONFIG" --product Velo --show-bin-path)/$BIN_NAME"
 if [[ ! -f "$BIN_PATH" ]]; then
     echo "error: built binary not found at $BIN_PATH" >&2
     exit 1
@@ -43,7 +43,7 @@ fi
 # Stage in a non-synced temp dir.
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
-APP="$STAGE/FlowClone.app"
+APP="$STAGE/Velo.app"
 
 echo "==> Assembling"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -82,7 +82,7 @@ if [[ -n "$IDENTITY" ]]; then
 else
     echo "" >&2
     echo "!!  WARNING: no stable signing identity found — falling back to AD-HOC." >&2
-    echo "!!  Ad-hoc signatures change every build, so macOS will RESET FlowClone's" >&2
+    echo "!!  Ad-hoc signatures change every build, so macOS will RESET Velo's" >&2
     echo "!!  Accessibility / Input Monitoring / Microphone permissions on each" >&2
     echo "!!  rebuild. Run 'make setup' once to fix this permanently." >&2
     echo "" >&2
@@ -93,9 +93,9 @@ else
 fi
 codesign --verify --strict "$APP"
 
-echo "==> Installing to $BUILD_DIR/FlowClone.app"
+echo "==> Installing to $BUILD_DIR/Velo.app"
 mkdir -p "$BUILD_DIR"
-rm -rf "$BUILD_DIR/FlowClone.app"
-cp -R "$APP" "$BUILD_DIR/FlowClone.app"
+rm -rf "$BUILD_DIR/Velo.app"
+cp -R "$APP" "$BUILD_DIR/Velo.app"
 
-echo "==> Done: $BUILD_DIR/FlowClone.app"
+echo "==> Done: $BUILD_DIR/Velo.app"

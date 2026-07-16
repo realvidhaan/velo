@@ -8,14 +8,14 @@ import AVFoundation
 /// instant the first buffer arrived. This drives the real engine so the tap
 /// actually fires off-main; before the fix the process would crash here.
 ///
-/// Gated behind FLOWCLONE_RUN_AUDIO_TEST=1 because it needs a real audio input
+/// Gated behind VELO_RUN_AUDIO_TEST=1 because it needs a real audio input
 /// device + microphone permission (absent on CI runners).
 final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
     func testRealtimeTapDoesNotTrap() async throws {
         try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["FLOWCLONE_RUN_AUDIO_TEST"] == "1",
-            "Set FLOWCLONE_RUN_AUDIO_TEST=1 (needs mic access) to run the live audio-tap test"
+            ProcessInfo.processInfo.environment["VELO_RUN_AUDIO_TEST"] == "1",
+            "Set VELO_RUN_AUDIO_TEST=1 (needs mic access) to run the live audio-tap test"
         )
         guard AudioCaptureService.microphoneAuthorized else {
             throw XCTSkip("Microphone not authorized for the test host")
@@ -45,8 +45,8 @@ final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
     func testRestartDoesNotCrash() async throws {
         try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["FLOWCLONE_RUN_AUDIO_TEST"] == "1",
-            "Set FLOWCLONE_RUN_AUDIO_TEST=1 (needs mic access) to run the restart test"
+            ProcessInfo.processInfo.environment["VELO_RUN_AUDIO_TEST"] == "1",
+            "Set VELO_RUN_AUDIO_TEST=1 (needs mic access) to run the restart test"
         )
         guard AudioCaptureService.microphoneAuthorized else {
             throw XCTSkip("Microphone not authorized for the test host")

@@ -10,14 +10,14 @@ setup:
 build:
 	swift build
 
-# Assemble a signed, runnable FlowClone.app.
+# Assemble a signed, runnable Velo.app.
 app:
 	./Scripts/build-app.sh debug
 
 # Build and launch the app.
 run: app
-	@echo "==> Launching FlowClone.app"
-	@open build/FlowClone.app
+	@echo "==> Launching Velo.app"
+	@open build/Velo.app
 
 # Run the unit tests (pure-logic targets).
 test:

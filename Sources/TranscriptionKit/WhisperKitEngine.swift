@@ -69,7 +69,7 @@ public final class WhisperKitEngine: TranscriptionEngine, @unchecked Sendable {
 /// actor without tripping Swift 6's region checker — the library expects to be
 /// used from a single, non-isolated call site that manages its own concurrency
 /// internally. `@unchecked Sendable` is our assertion that we do exactly that:
-/// FlowClone runs one hold-to-talk session at a time, so loads and
+/// Velo runs one hold-to-talk session at a time, so loads and
 /// transcriptions never overlap.
 final class WhisperKitHolder: @unchecked Sendable {
     private let model: String

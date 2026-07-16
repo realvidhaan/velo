@@ -65,7 +65,7 @@ public struct OnboardingView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Welcome to FlowClone")
+                Text("Welcome to Velo")
                     .font(.largeTitle).fontWeight(.semibold)
                 Text("Hold a key anywhere, speak, release — your words appear as text.")
                     .foregroundStyle(.secondary)
@@ -74,7 +74,7 @@ public struct OnboardingView: View {
             VStack(spacing: 12) {
                 row(
                     title: "Microphone",
-                    detail: "So FlowClone can hear you.",
+                    detail: "So Velo can hear you.",
                     done: state.microphoneGranted,
                     action: ("Allow", actions.grantMicrophone)
                 )
@@ -86,7 +86,7 @@ public struct OnboardingView: View {
                 )
                 row(
                     title: "Accessibility",
-                    detail: "So FlowClone can insert text into the focused app.",
+                    detail: "So Velo can insert text into the focused app.",
                     done: state.accessibilityGranted,
                     action: ("Grant", actions.grantAccessibility)
                 )

@@ -99,7 +99,7 @@ public enum CleanupPrompt {
         "<transcript>\n\(raw)\n</transcript>"
     }
 
-    /// Curated defaults that teach the model FlowClone's structure conventions.
+    /// Curated defaults that teach the model Velo's structure conventions.
     /// Fed as few-shot examples alongside any per-app or learned pairs.
     public static let defaultExamples: [CleanupExample] = [
         CleanupExample(

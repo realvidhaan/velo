@@ -229,7 +229,7 @@ final class AppController: ObservableObject {
         // session so it can't wake up and inject into this one (ABA guard).
         sessionGeneration &+= 1
         currentMode = mode
-        // Capture the target app now (FlowClone is a menu-bar agent and never
+        // Capture the target app now (Velo is a menu-bar agent and never
         // becomes frontmost, so this stays the user's app through the session).
         targetBundleID = FocusedAppInspector.frontmostBundleID
 

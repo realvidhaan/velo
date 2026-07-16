@@ -59,9 +59,9 @@ final class CleanupPromptTests: XCTestCase {
     }
 
     func testSystemIncludesDictionaryTerms() {
-        let s = CleanupPrompt.system(dictionary: ["Vidhaan", "FlowClone"], appHint: nil)
+        let s = CleanupPrompt.system(dictionary: ["Vidhaan", "Velo"], appHint: nil)
         XCTAssertTrue(s.contains("Vidhaan"))
-        XCTAssertTrue(s.contains("FlowClone"))
+        XCTAssertTrue(s.contains("Velo"))
     }
 
     func testSystemIncludesAppHint() {
@@ -181,8 +181,8 @@ final class PostGuardTests: XCTestCase {
 final class FoundationModelCleanupTests: XCTestCase {
     func testCleanupWithAppleModel() async throws {
         try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["FLOWCLONE_RUN_LLM_TEST"] == "1",
-            "Set FLOWCLONE_RUN_LLM_TEST=1 to run the live Apple Foundation Models test"
+            ProcessInfo.processInfo.environment["VELO_RUN_LLM_TEST"] == "1",
+            "Set VELO_RUN_LLM_TEST=1 to run the live Apple Foundation Models test"
         )
         let engine = FoundationModelCleanupEngine()
         guard await engine.isAvailable() else {

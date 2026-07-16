@@ -8,13 +8,13 @@ import AVFoundation
 /// voice processing ON vs OFF. If VP-IO yields ~silence while raw capture yields a
 /// real ambient level, VP-IO is the culprit.
 ///
-/// Gated on FLOWCLONE_RUN_AUDIO_TEST=1 (needs a real mic).
+/// Gated on VELO_RUN_AUDIO_TEST=1 (needs a real mic).
 final class VoiceProcessingSignalTests: XCTestCase {
     @MainActor
     private func measurePeak(voiceProcessing: Bool) async throws -> Float {
         try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["FLOWCLONE_RUN_AUDIO_TEST"] == "1",
-            "Set FLOWCLONE_RUN_AUDIO_TEST=1 (needs mic access)"
+            ProcessInfo.processInfo.environment["VELO_RUN_AUDIO_TEST"] == "1",
+            "Set VELO_RUN_AUDIO_TEST=1 (needs mic access)"
         )
         guard AudioCaptureService.microphoneAuthorized else {
             throw XCTSkip("Microphone not authorized for the test host")

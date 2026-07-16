@@ -8,7 +8,7 @@ struct MenuBarContentView: View {
     @ObservedObject var controller: AppController
 
     var body: some View {
-        Text("FlowClone \(FlowCloneInfo.version)")
+        Text("Velo \(VeloInfo.version)")
 
         Divider()
 
@@ -60,7 +60,7 @@ struct MenuBarContentView: View {
             (NSApp.delegate as? AppDelegate)?.showOnboarding()
         }
 
-        Button("Quit FlowClone") {
+        Button("Quit Velo") {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")

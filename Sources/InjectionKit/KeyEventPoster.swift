@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// Posts synthetic keystrokes — the single place FlowClone emits keyboard
+/// Posts synthetic keystrokes — the single place Velo emits keyboard
 /// events (⌘V for paste injection, ⌘C for reading a selection).
 public enum KeyEventPoster {
     /// Common virtual key codes.

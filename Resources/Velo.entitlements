@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <!--
-      FlowClone is NOT sandboxed: it needs CGEventTap (global hotkey),
+      Velo is NOT sandboxed: it needs CGEventTap (global hotkey),
       Accessibility (paste injection), and Input Monitoring. These are
       incompatible with the App Sandbox, so the app is distributed outside
       the Mac App Store.

@@ -58,7 +58,7 @@ final class OnboardingWindowController {
             }
         )
         let window = NSWindow(contentViewController: hosting)
-        window.title = "Welcome to FlowClone"
+        window.title = "Welcome to Velo"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()

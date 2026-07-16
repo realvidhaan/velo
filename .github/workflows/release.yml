@@ -19,17 +19,17 @@ jobs:
       - name: Zip
         run: |
           cd build
-          ditto -c -k --keepParent FlowClone.app FlowClone.zip
+          ditto -c -k --keepParent Velo.app Velo.zip
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/FlowClone.zip
+          files: build/Velo.zip
           body: |
-            FlowClone ${{ github.ref_name }}
+            Velo ${{ github.ref_name }}
 
             Unsigned / ad-hoc-signed build. On first launch, right-click the app
             and choose **Open**, or run:
-            `xattr -dr com.apple.quarantine FlowClone.app`
+            `xattr -dr com.apple.quarantine Velo.app`
 
             Requires macOS 26 or later.

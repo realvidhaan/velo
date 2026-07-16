@@ -5,7 +5,7 @@ import XCTest
 final class OnboardingSnapshotTests: XCTestCase {
     func testRenderOnboarding() {
         let dir: URL
-        if let override = ProcessInfo.processInfo.environment["FLOWCLONE_SNAPSHOT_DIR"] {
+        if let override = ProcessInfo.processInfo.environment["VELO_SNAPSHOT_DIR"] {
             dir = URL(fileURLWithPath: override)
         } else {
             dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("fc-onboarding")

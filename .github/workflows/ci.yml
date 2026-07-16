@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-test:
-    # FlowClone needs the macOS 26 SDK (SpeechAnalyzer, FoundationModels).
+    # Velo needs the macOS 26 SDK (SpeechAnalyzer, FoundationModels).
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4

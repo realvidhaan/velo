@@ -3,15 +3,15 @@ import AppKit
 import FlowCore
 import PersistenceKit
 
-/// FlowClone is a menu-bar-only (`LSUIElement`) app. There is no main window;
+/// Velo is a menu-bar-only (`LSUIElement`) app. There is no main window;
 /// the UI lives in the menu bar item, a floating recording indicator, and a
 /// Settings window (dictionary, per-app formatting, history, engines).
 @main
-struct FlowCloneApp: App {
+struct VeloApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        MenuBarExtra("FlowClone", systemImage: "mic.fill") {
+        MenuBarExtra("Velo", systemImage: "mic.fill") {
             MenuBarContentView(controller: delegate.controller)
         }
         .menuBarExtraStyle(.menu)

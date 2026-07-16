@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # One-time setup: create a *persistent* local code-signing identity so
-# FlowClone.app keeps a stable signature across rebuilds.
+# Velo.app keeps a stable signature across rebuilds.
 #
 #   Scripts/setup-signing.sh
 #

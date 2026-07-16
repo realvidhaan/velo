@@ -85,8 +85,8 @@ final class CommandRunnerTests: XCTestCase {
 final class FoundationModelCommandEditorTests: XCTestCase {
     func testLiveEdit() async throws {
         try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["FLOWCLONE_RUN_LLM_TEST"] == "1",
-            "Set FLOWCLONE_RUN_LLM_TEST=1 to run the live command-edit test"
+            ProcessInfo.processInfo.environment["VELO_RUN_LLM_TEST"] == "1",
+            "Set VELO_RUN_LLM_TEST=1 to run the live command-edit test"
         )
         let editor = FoundationModelCommandEditor()
         guard await editor.isAvailable() else { throw XCTSkip("Apple FM unavailable") }

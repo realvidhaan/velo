@@ -173,7 +173,7 @@ public final class AudioCaptureService {
     /// (notably when the audio IO unit is torn down and re-established on
     /// **sleep/wake**). A `@MainActor`-isolated `@objc` selector invoked off-main
     /// trips Swift 6's executor assertion and SIGTRAPs the whole app — which is
-    /// exactly why FlowClone was dying every time the Mac woke. So take the
+    /// exactly why Velo was dying every time the Mac woke. So take the
     /// notification on whatever thread it arrives on and hop to the main actor to
     /// do the real work.
     /// Internal (not private) so a test can invoke it off-main to reproduce the

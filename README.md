@@ -1,4 +1,4 @@
-# FlowClone
+# Velo
 
 An open-source macOS voice-dictation app in the spirit of Wispr Flow: **hold a
 global hotkey anywhere, speak, release**, and cleaned-up, formatted text is
@@ -14,13 +14,13 @@ inserted at your cursor in whatever app is focused.
 
 ## Requirements
 
-- **macOS 26 (Tahoe) or later** — FlowClone relies on the `SpeechAnalyzer` and
+- **macOS 26 (Tahoe) or later** — Velo relies on the `SpeechAnalyzer` and
   `FoundationModels` frameworks introduced in macOS 26.
 - Xcode 26+ to build.
 
 ## Privacy
 
-FlowClone is **not** "fully local" by default. The out-of-the-box configuration
+Velo is **not** "fully local" by default. The out-of-the-box configuration
 transcribes speech **on-device** with `SpeechAnalyzer`, but sends the resulting
 **text** to Groq's free API for the cleanup pass. To keep everything on your
 Mac, switch the cleanup engine to **Apple Foundation Models** or **Ollama** in
@@ -34,13 +34,13 @@ disk if you enable history audio retention (off by default).
 ```sh
 make setup  # ONE TIME: create a stable local signing identity (see below)
 make test   # run the unit tests
-make run    # build, assemble FlowClone.app, and launch it
+make run    # build, assemble Velo.app, and launch it
 ```
 
 Run `make setup` **once**, before your first `make run`. You do **not** need to
 re-run it on later builds.
 
-It creates a persistent self-signed **“FlowClone Local Dev”** code-signing
+It creates a persistent self-signed **“Velo Local Dev”** code-signing
 certificate in your login keychain (no Apple Developer account required). This
 keeps the app's signing identity constant across rebuilds, so the macOS
 permissions you grant it (Accessibility, Input Monitoring, Microphone) survive
@@ -49,11 +49,11 @@ signature that changes on every build, causing macOS to treat each rebuild as a
 new app and wipe those grants. If you already have an **Apple Development**
 identity, `make setup` is a no-op and that identity is used automatically.
 
-`make run` produces `build/FlowClone.app`. On first launch macOS Gatekeeper may
+`make run` produces `build/Velo.app`. On first launch macOS Gatekeeper may
 warn (the cert is self-signed) — right-click the app and choose **Open**, or run
-`xattr -dr com.apple.quarantine build/FlowClone.app`.
+`xattr -dr com.apple.quarantine build/Velo.app`.
 
-FlowClone is a menu-bar-only app (no Dock icon). Look for the microphone icon in
+Velo is a menu-bar-only app (no Dock icon). Look for the microphone icon in
 your menu bar.
 
 ## Architecture
@@ -67,12 +67,12 @@ CGEventTap (hotkey) → DictationController → AudioCapture → Transcription �
 ```
 
 Logic lives in the `FlowCore` library (unit-tested with `swift test`); the
-`FlowCloneApp` executable target holds `@main`, the SwiftUI menu-bar UI, and the
+`VeloApp` executable target holds `@main`, the SwiftUI menu-bar UI, and the
 floating recording indicator.
 
 ## Setup
 
-On first launch FlowClone shows a setup guide that walks through the three
+On first launch Velo shows a setup guide that walks through the three
 permissions it needs:
 
 - **Microphone** — to hear you.

@@ -13,7 +13,7 @@ public struct Substitution: Equatable, Hashable, Sendable {
     }
 }
 
-/// Word-level diff between the text FlowClone injected and the text the user
+/// Word-level diff between the text Velo injected and the text the user
 /// ended up with, extracting 1-word→1-word substitutions (the shape that maps
 /// cleanly to a dictionary rule). Multi-word edits are ignored — they're
 /// usually genuine rewrites, not vocabulary corrections.

@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "FlowClone",
+    name: "Velo",
     platforms: [
         .macOS("26.0")
     ],
     products: [
-        .executable(name: "FlowClone", targets: ["FlowCloneApp"]),
+        .executable(name: "Velo", targets: ["VeloApp"]),
         .library(name: "FlowCore", targets: ["FlowCore"]),
     ],
     dependencies: [
@@ -87,7 +87,7 @@ let package = Package(
 
         // The app itself: SwiftUI @main, MenuBarExtra, UI, dependency wiring.
         .executableTarget(
-            name: "FlowCloneApp",
+            name: "VeloApp",
             dependencies: [
                 "FlowCore", "HotkeyService", "AudioService", "IndicatorUI",
                 "TranscriptionKit", "InjectionKit", "CleanupKit", "PersistenceKit",

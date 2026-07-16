@@ -4,12 +4,12 @@ import SwiftUI
 
 @MainActor
 final class IndicatorSnapshotTests: XCTestCase {
-    /// Renders the indicator states to PNGs. Writes to $FLOWCLONE_SNAPSHOT_DIR
+    /// Renders the indicator states to PNGs. Writes to $VELO_SNAPSHOT_DIR
     /// if set (so a human/agent can inspect them), else a temp dir. Asserts the
     /// renderer produced non-trivial images.
     func testRenderIndicatorSnapshots() {
         let dir: URL
-        if let override = ProcessInfo.processInfo.environment["FLOWCLONE_SNAPSHOT_DIR"] {
+        if let override = ProcessInfo.processInfo.environment["VELO_SNAPSHOT_DIR"] {
             dir = URL(fileURLWithPath: override)
         } else {
             dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("fc-snaps")

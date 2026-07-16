@@ -19,7 +19,7 @@ public struct DictionarySettingsView: View {
 
     public var body: some View {
         VStack(alignment: .leading) {
-            Text("Words and names FlowClone should recognize and spell correctly.")
+            Text("Words and names Velo should recognize and spell correctly.")
                 .font(.caption).foregroundStyle(.secondary)
                 .padding(.horizontal)
 
@@ -91,7 +91,7 @@ public struct DictionarySettingsView: View {
 }
 
 /// Replacement-rules editor — the "Your Voice" transparency panel. Every learned
-/// or manual substitution is visible and editable here, so nothing FlowClone
+/// or manual substitution is visible and editable here, so nothing Velo
 /// learned about you is hidden.
 public struct ReplacementRulesSettingsView: View {
     let dataStore: DataStore

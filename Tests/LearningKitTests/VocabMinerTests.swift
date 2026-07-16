@@ -4,12 +4,12 @@ import XCTest
 final class VocabMinerTests: XCTestCase {
     func testSuggestsFrequentProperNoun() {
         let transcripts = [
-            "let's ship FlowClone today",
-            "FlowClone is looking good",
-            "I love using FlowClone",
+            "let's ship Velo today",
+            "Velo is looking good",
+            "I love using Velo",
         ]
         let candidates = VocabMiner.candidates(from: transcripts, existing: [], minCount: 3)
-        XCTAssertEqual(candidates.first?.term, "FlowClone")
+        XCTAssertEqual(candidates.first?.term, "Velo")
         XCTAssertEqual(candidates.first?.count, 3)
     }
 

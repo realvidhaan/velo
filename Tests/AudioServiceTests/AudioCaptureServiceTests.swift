@@ -36,6 +36,38 @@ final class AudioCaptureServiceTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(service.level, 0)
     }
 
+    /// Regression test for the "quits on the 2nd Fn press" crash: after one
+    /// start/stop cycle, a second `start()` re-read a stale input format (0 Hz /
+    /// 0 ch) and `installTapOnBus` raised an Obj-C NSException → abort(). The fix
+    /// prepares before reading the format, defensively removes any prior tap, and
+    /// validates the format. Driving start → stop → start must not crash and must
+    /// deliver buffers on the second run.
+    @MainActor
+    func testRestartDoesNotCrash() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["FLOWCLONE_RUN_AUDIO_TEST"] == "1",
+            "Set FLOWCLONE_RUN_AUDIO_TEST=1 (needs mic access) to run the restart test"
+        )
+        guard AudioCaptureService.microphoneAuthorized else {
+            throw XCTSkip("Microphone not authorized for the test host")
+        }
+
+        let service = AudioCaptureService()
+
+        // First cycle.
+        try service.start()
+        service.stop()
+
+        // Second cycle — this is where the crash used to happen.
+        let tapFired = expectation(description: "second start delivered a buffer")
+        tapFired.assertForOverFulfill = false
+        service.onLevel = { _ in tapFired.fulfill() }
+        try service.start()
+        defer { service.stop() }
+
+        await fulfillment(of: [tapFired], timeout: 3.0)
+    }
+
     /// Regression test for the sleep/wake crash: AVFAudio posts
     /// `.AVAudioEngineConfigurationChange` on a background queue when the audio
     /// unit is rebuilt on wake. The handler used to be `@MainActor`-isolated, so

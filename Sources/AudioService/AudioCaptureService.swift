@@ -2,6 +2,14 @@ import Foundation
 import AVFoundation
 import os
 
+/// Errors surfaced by `AudioCaptureService` so callers can fail gracefully
+/// instead of the app crashing.
+public enum AudioCaptureError: Error {
+    /// The microphone input format was invalid (0 Hz / 0 channels) even after a
+    /// reset — installing a tap with it would raise an uncatchable Obj-C exception.
+    case invalidInputFormat
+}
+
 /// Captures microphone audio with `AVAudioEngine`. In M1 it exposes a smoothed
 /// input **level** (0…1) for the recording indicator. Later milestones add the
 /// PCM tap feed into `SpeechAnalyzer` and a WAV sidecar; the tap is already
@@ -53,8 +61,11 @@ public final class AudioCaptureService {
     public func start() throws {
         guard !running else { return }
         configureVoiceProcessing()
-        installTap()
+        // Prepare *before* reading the input format. A stopped/idle engine's input
+        // node can report an invalid format (0 Hz / 0 channels); preparing pulls it
+        // back to the live hardware format. installTap then validates it.
         engine.prepare()
+        try installTap()
         try engine.start()
         running = true
         log.info("Audio engine started")
@@ -96,9 +107,31 @@ public final class AudioCaptureService {
 
     // MARK: Tap
 
-    private func installTap() {
+    private func installTap() throws {
         let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
+        // Never install two taps on the same bus. If a previous session errored
+        // out after installing but before `stop()` removed it (or a config-change
+        // re-tap raced), a leftover tap makes `installTapOnBus` raise
+        // "already installed". `removeTap` is a safe no-op when none is present.
+        input.removeTap(onBus: 0)
+
+        var format = input.outputFormat(forBus: 0)
+        if format.channelCount == 0 || format.sampleRate == 0 {
+            // The input node went stale while idle (the classic "quits on the 2nd
+            // Fn press" trigger). Reset + re-prepare to repull the live format.
+            engine.reset()
+            engine.prepare()
+            format = input.outputFormat(forBus: 0)
+        }
+        // Crucial: installing a tap with an invalid format raises an Obj-C
+        // NSException, which a Swift `do/catch` CANNOT catch — it calls abort() and
+        // kills the whole app. So validate first and surface a Swift error instead;
+        // `start()`'s caller then fails gracefully and the app stays alive.
+        guard format.channelCount > 0, format.sampleRate > 0 else {
+            log.error("Input format still invalid (\(format.sampleRate, privacy: .public) Hz, \(format.channelCount, privacy: .public) ch); skipping tap")
+            throw AudioCaptureError.invalidInputFormat
+        }
+
         // The block MUST be `@Sendable` (non-isolated). AVAudioEngine invokes it
         // on its realtime audio thread; a plain trailing closure formed here would
         // inherit this method's @MainActor isolation, and the Swift 6 runtime then
@@ -165,11 +198,16 @@ public final class AudioCaptureService {
         if engine.isRunning { engine.stop() }
         engine.inputNode.removeTap(onBus: 0)
         configureVoiceProcessing()
-        installTap()
+        engine.prepare()
         do {
+            try installTap()
             try engine.start()
         } catch {
-            log.error("Failed to restart engine after config change: \(error.localizedDescription, privacy: .public)")
+            // Don't crash on a bad re-tap: mark ourselves stopped so the next Fn
+            // press does a clean cold start instead of assuming we're still live.
+            log.error("Failed to re-tap after config change: \(error.localizedDescription, privacy: .public)")
+            running = false
+            setLevel(0)
         }
     }
 

@@ -1,13 +1,27 @@
 import Foundation
 import AVFoundation
+import ObjCSupport
 import os
 
 /// Errors surfaced by `AudioCaptureService` so callers can fail gracefully
 /// instead of the app crashing.
-public enum AudioCaptureError: Error {
+public enum AudioCaptureError: Error, CustomStringConvertible {
     /// The microphone input format was invalid (0 Hz / 0 channels) even after a
     /// reset — installing a tap with it would raise an uncatchable Obj-C exception.
     case invalidInputFormat
+    /// `installTap` raised an Obj-C `NSException` (carried reason). Caught by the
+    /// ObjCSupport shim and rethrown as a Swift error so we degrade, not abort.
+    case tapInstallFailed(String)
+    /// `engine.start()` raised an Obj-C `NSException` (carried reason).
+    case engineStartFailed(String)
+
+    public var description: String {
+        switch self {
+        case .invalidInputFormat: return "microphone input format invalid (0 Hz / 0 channels)"
+        case .tapInstallFailed(let reason): return "installTap raised: \(reason)"
+        case .engineStartFailed(let reason): return "engine.start raised: \(reason)"
+        }
+    }
 }
 
 /// Captures microphone audio with `AVAudioEngine`. In M1 it exposes a smoothed
@@ -65,10 +79,30 @@ public final class AudioCaptureService {
         // node can report an invalid format (0 Hz / 0 channels); preparing pulls it
         // back to the live hardware format. installTap then validates it.
         engine.prepare()
-        try installTap()
-        try engine.start()
+        do {
+            try installTapAndStart()
+        } catch {
+            // A stale or racy engine state (e.g. a config-change re-tap that just
+            // fired, or the IO unit mid-rebuild) can make the first installTap
+            // raise. Do ONE full clean-slate reset and retry; if it still fails,
+            // propagate so `startAudio()` shows the error and we stay alive.
+            log.error("Audio start failed once (\(String(describing: error), privacy: .public)); resetting engine and retrying")
+            hardResetEngine()
+            try installTapAndStart()
+        }
         running = true
         log.info("Audio engine started")
+    }
+
+    /// Tears the engine all the way down to a clean cold state so a retry starts
+    /// from scratch rather than from whatever partial state made the first attempt
+    /// raise.
+    private func hardResetEngine() {
+        engine.inputNode.removeTap(onBus: 0)
+        if engine.isRunning { engine.stop() }
+        engine.reset()
+        configureVoiceProcessing()
+        engine.prepare()
     }
 
     /// Toggles Apple voice processing on the input node. Must run **before**
@@ -107,49 +141,68 @@ public final class AudioCaptureService {
 
     // MARK: Tap
 
-    private func installTap() throws {
+    /// Installs the tap **and** starts the engine, converting any Obj-C
+    /// `NSException` raised by AVFAudio into a Swift error. This is the crux of the
+    /// crash fix: `-[AVAudioNode installTapOnBus:...]` reports failure by *raising*,
+    /// and a Swift `do/catch` cannot catch that — the runtime `abort()`s and the
+    /// menu-bar app vanishes. Wrapping the call in `VeloRunCatchingNSException`
+    /// (an Obj-C `@try/@catch`) turns the abort into a throw the caller survives.
+    private func installTapAndStart() throws {
         let input = engine.inputNode
-        // Never install two taps on the same bus. If a previous session errored
-        // out after installing but before `stop()` removed it (or a config-change
-        // re-tap raced), a leftover tap makes `installTapOnBus` raise
-        // "already installed". `removeTap` is a safe no-op when none is present.
+        // Never install two taps on the same bus. A leftover tap from a session
+        // that errored out (or a raced config-change re-tap) makes installTap raise
+        // "already installed"; `removeTap` is a safe no-op when none is present.
         input.removeTap(onBus: 0)
 
         var format = input.outputFormat(forBus: 0)
         if format.channelCount == 0 || format.sampleRate == 0 {
-            // The input node went stale while idle (the classic "quits on the 2nd
-            // Fn press" trigger). Reset + re-prepare to repull the live format.
+            // Input node went stale while idle. Reset + re-prepare to repull the
+            // live hardware format.
             engine.reset()
             engine.prepare()
             format = input.outputFormat(forBus: 0)
         }
-        // Crucial: installing a tap with an invalid format raises an Obj-C
-        // NSException, which a Swift `do/catch` CANNOT catch — it calls abort() and
-        // kills the whole app. So validate first and surface a Swift error instead;
-        // `start()`'s caller then fails gracefully and the app stays alive.
         guard format.channelCount > 0, format.sampleRate > 0 else {
-            log.error("Input format still invalid (\(format.sampleRate, privacy: .public) Hz, \(format.channelCount, privacy: .public) ch); skipping tap")
+            log.error("Input format invalid (\(format.sampleRate, privacy: .public) Hz, \(format.channelCount, privacy: .public) ch)")
             throw AudioCaptureError.invalidInputFormat
         }
 
-        // The block MUST be `@Sendable` (non-isolated). AVAudioEngine invokes it
-        // on its realtime audio thread; a plain trailing closure formed here would
-        // inherit this method's @MainActor isolation, and the Swift 6 runtime then
-        // traps (SIGTRAP) when it runs off-main. Everything touched synchronously
-        // here is nonisolated; actor-isolated work hops via `Task { @MainActor }`.
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { @Sendable [weak self] buffer, _ in
-            let rms = Self.rms(of: buffer)
-            // The engine may recycle `buffer` once this block returns, so copy it
-            // before handing it to an async task on the main actor.
-            guard let copy = Self.copy(buffer) else { return }
-            // `copy` is a freshly-allocated, uniquely-owned buffer used nowhere
-            // else, so handing it to the main actor is race-free. The region
-            // checker can't prove that (it was built by reading `buffer`), so opt
-            // this hand-off out of the check explicitly.
-            nonisolated(unsafe) let handoff = copy
-            Task { @MainActor [weak self] in
-                self?.publish(rms: rms, buffer: handoff)
+        // The block MUST be `@Sendable` (non-isolated). AVAudioEngine invokes it on
+        // its realtime audio thread; a closure inheriting this method's @MainActor
+        // isolation would trap (SIGTRAP) when it runs off-main. Everything touched
+        // synchronously is nonisolated; actor-isolated work hops via Task{@MainActor}.
+        if let nsError = VeloRunCatchingNSException({
+            input.installTap(onBus: 0, bufferSize: 4096, format: format) { @Sendable [weak self] buffer, _ in
+                let rms = Self.rms(of: buffer)
+                // The engine may recycle `buffer` once this block returns, so copy
+                // it before handing it to an async task on the main actor.
+                guard let copy = Self.copy(buffer) else { return }
+                // `copy` is a freshly-allocated, uniquely-owned buffer used nowhere
+                // else, so handing it to the main actor is race-free.
+                nonisolated(unsafe) let handoff = copy
+                Task { @MainActor [weak self] in
+                    self?.publish(rms: rms, buffer: handoff)
+                }
             }
+        }) {
+            log.error("installTap raised NSException: \(nsError.localizedDescription, privacy: .public)")
+            throw AudioCaptureError.tapInstallFailed(nsError.localizedDescription)
+        }
+
+        // `engine.start()` normally throws a Swift error, but can also raise an
+        // Obj-C NSException in edge cases — wrap it the same way. Capture any Swift
+        // error thrown inside the (non-throwing) Obj-C block and rethrow it after.
+        var swiftStartError: Error?
+        if let nsError = VeloRunCatchingNSException({
+            do { try self.engine.start() } catch { swiftStartError = error }
+        }) {
+            input.removeTap(onBus: 0)
+            log.error("engine.start raised NSException: \(nsError.localizedDescription, privacy: .public)")
+            throw AudioCaptureError.engineStartFailed(nsError.localizedDescription)
+        }
+        if let swiftStartError {
+            input.removeTap(onBus: 0)
+            throw swiftStartError
         }
     }
 
@@ -200,12 +253,14 @@ public final class AudioCaptureService {
         configureVoiceProcessing()
         engine.prepare()
         do {
-            try installTap()
-            try engine.start()
+            // Exception-safe: converts any AVFAudio NSException into a Swift error
+            // instead of aborting the process — this re-tap fires right after our
+            // own engine.start(), so a raise here was a prime menu-bar-death path.
+            try installTapAndStart()
         } catch {
             // Don't crash on a bad re-tap: mark ourselves stopped so the next Fn
             // press does a clean cold start instead of assuming we're still live.
-            log.error("Failed to re-tap after config change: \(error.localizedDescription, privacy: .public)")
+            log.error("Failed to re-tap after config change: \(String(describing: error), privacy: .public)")
             running = false
             setLevel(0)
         }

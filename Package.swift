@@ -27,9 +27,16 @@ let package = Package(
             dependencies: ["VeloCore"]
         ),
 
+        // Objective-C shim: catch NSExceptions from Cocoa APIs (e.g. AVAudioEngine
+        // installTap) and convert them to Swift errors so they can't abort() us.
+        .target(
+            name: "ObjCSupport"
+        ),
+
         // Microphone capture via AVAudioEngine: audio level + (later) STT feed.
         .target(
-            name: "AudioService"
+            name: "AudioService",
+            dependencies: ["ObjCSupport"]
         ),
 
         // The floating recording indicator (SwiftUI). A library so it can be
@@ -105,7 +112,7 @@ let package = Package(
         ),
         .testTarget(
             name: "AudioServiceTests",
-            dependencies: ["AudioService"]
+            dependencies: ["AudioService", "ObjCSupport"]
         ),
         .testTarget(
             name: "IndicatorUITests",

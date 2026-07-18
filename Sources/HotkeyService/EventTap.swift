@@ -144,17 +144,25 @@ public final class EventTap: @unchecked Sendable {
     /// shared state.
     private func reenableAndResync(reason: String) {
         if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-        guard case .modifier(let modifier) = hotkey.kind else { return }
-        let held = CGEventSource.flagsState(.combinedSessionState).contains(modifier.flagMask)
+        // Inspect `hotkey` and mutate `modifierHeld` under the same lock the tap
+        // callback and `updateHotkey(_:)` use. Emitting the compensating `.up`
+        // while still holding the lock guarantees it is enqueued before any real
+        // `.down` the tap thread might produce next — otherwise a `.down` could
+        // jump ahead on the main queue and cancel the freshly started session.
         stateLock.lock()
+        guard case .modifier(let modifier) = hotkey.kind else {
+            stateLock.unlock()
+            return
+        }
+        let held = CGEventSource.flagsState(.combinedSessionState).contains(modifier.flagMask)
         let wasHeld = modifierHeld
         modifierHeld = held
-        stateLock.unlock()
         if wasHeld && !held {
             // We thought the modifier was down but it is up now — emit the missed
             // release so any in-flight session ends instead of hanging.
             emit(.up)
         }
+        stateLock.unlock()
         log.notice("Event tap re-enabled (\(reason, privacy: .public)); modifier held=\(held, privacy: .public)")
     }
 

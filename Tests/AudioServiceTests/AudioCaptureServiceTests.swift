@@ -93,9 +93,13 @@ final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
     func testColdStartGivesUpAfterBudget() async {
         var attempts = 0
+        // Non-divisible budget/delay so a full final `delay` would overshoot the
+        // budget unless the sleep is clamped to the remaining time.
+        let budget: Duration = .milliseconds(100)
+        let started = ContinuousClock.now
         do {
             try await AudioCaptureService.retryingColdStart(
-                budget: .milliseconds(120), delay: .milliseconds(20)
+                budget: budget, delay: .milliseconds(35)
             ) { n in
                 attempts = n
                 throw AudioCaptureError.invalidInputFormat  // never recovers
@@ -106,6 +110,11 @@ final class AudioCaptureServiceTests: XCTestCase {
                 return XCTFail("should rethrow the last attempt's error, got \(error)")
             }
             XCTAssertGreaterThanOrEqual(attempts, 2, "should retry at least once before giving up")
+            // Clamped sleeps must keep total time within budget (+ generous
+            // scheduler tolerance) rather than overshooting by a full delay.
+            let elapsed = ContinuousClock.now - started
+            XCTAssertLessThan(elapsed, budget + .milliseconds(150),
+                              "give-up should respect the budget, took \(elapsed)")
         } catch {
             XCTFail("unexpected error type: \(error)")
         }

@@ -133,8 +133,12 @@ public final class AudioCaptureService {
                 try await attempt(n)
                 return
             } catch {
-                if ContinuousClock.now >= deadline { throw error }
-                try await Task.sleep(for: delay)
+                // Clamp the settle wait to the remaining budget so a failure near
+                // the deadline can't overshoot it by a full `delay`, and don't
+                // begin another attempt once the budget is spent.
+                let remaining = deadline - ContinuousClock.now
+                if remaining <= .zero { throw error }
+                try await Task.sleep(for: min(delay, remaining))
             }
         }
     }

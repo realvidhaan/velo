@@ -286,11 +286,17 @@ final class AppController: ObservableObject {
         armTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: self.holdDebounce)
-            guard !Task.isCancelled else { return }
+            // Bail if cancelled or if a newer session has superseded us (ABA
+            // guard): a stale arm task must never touch the newer session's audio,
+            // indicator, or armTask. The cold start below can take up to ~1.5s, so
+            // a release + fresh press can easily supersede us mid-flight.
+            guard !Task.isCancelled, generation == self.sessionGeneration else { return }
             self.audio.voiceProcessing = self.settings.voiceProcessing
             if let startError = await self.startAudio() {
-                // Released mid-cold-start? then this press is moot; only surface
-                // the failure (and leave nothing running) if we're still arming.
+                // If a newer session armed while we were (slowly) cold-starting it
+                // now owns the shared engine — leave it be. Only clean up and
+                // surface the failure when we're still the current session.
+                guard generation == self.sessionGeneration else { return }
                 self.stopAudio()
                 if !Task.isCancelled {
                     self.showTransientError(Self.micErrorMessage(for: startError))
@@ -298,6 +304,10 @@ final class AppController: ObservableObject {
                 self.armTask = nil
                 return
             }
+            // Superseded after a successful start? the newer session shares this
+            // engine, so don't stop it; only stop audio we still own (a plain
+            // release of *this* session).
+            guard generation == self.sessionGeneration else { return }
             guard !Task.isCancelled else { self.stopAudio(); return }
             self.transition(.hotkeyDown(mode))
             self.indicator.show(.recording)
